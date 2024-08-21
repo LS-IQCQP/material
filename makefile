@@ -1,0 +1,1 @@
+g++ ls_read.cpp ls_no_cons.cpp ls_bin.cpp component.cpp call.cpp -static -O3 -o qpsolver
