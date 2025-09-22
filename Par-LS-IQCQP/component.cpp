@@ -1,6 +1,27 @@
 #include "sol.h"
+#include "parallel.h"
+#include <fmt/format.h>
 namespace solver
 {
+
+
+    // int qp_solver::self_poly_solve_quadratic(Float a, Float b, Float c, Float * root1, Float * root2)
+    // {
+    //     if (fabs(a) < eb) { // 处理 a = 0 的情况，变为线性方程 bx + c = 0
+    //         return 0;
+    //     }
+    //     double discriminant = b * b - 4 * a * c;
+
+    //     if (discriminant > 0) { // 两个不同的实根
+    //         double sqrtD = sqrtl(discriminant);
+    //         *root1 = (-b - sqrtD) / (2 * a);
+    //         *root2 = (-b + sqrtD) / (2 * a);
+    //         return 2;
+    //     } else if (std::fabs(discriminant) < 0) { // 重根
+    //         *root1 =  -b / (2 * a);
+    //         return 1;
+    //     }
+    // }
 
     void qp_solver::judge_problem()
     {
@@ -27,8 +48,17 @@ namespace solver
         if (_constraints.size() <= 50) cons_num_type = 0;
         else cons_num_type = 1;
         _start_time = std::chrono::steady_clock::now();
+        if (portfolio_mode == 9 || portfolio_mode == 10) {
+            preprocess();
+            return;
+        }
         // cout << _int_vars.size() << " "  << _bool_vars.size() << endl;
-        if (_vars.size() > _int_vars.size() && _int_vars.size() > 0) 
+        // if (_vars.size() > _int_vars.size() && _int_vars.size() > 0) 
+        if (var_name.empty()) {
+            for (auto var : _vars)
+                var_name.push_back(var.name);
+        }
+        if (_vars.size() > _int_vars.size()) 
         {
             cons_num_type = 1;
             // local_search_mix_not_dis();
@@ -48,12 +78,12 @@ namespace solver
             judge_problem();
             if (is_cons_quadratic)
             {
-                cout << "quad_cons" <<endl;
+                // cout << "quad_cons" <<endl;
                 local_search_bin();
             }
             else 
             {
-                cout << "linear_cons" << endl;
+                // cout << "linear_cons" << endl;
                 local_search_bin_new();
             }
         } 
@@ -130,7 +160,7 @@ namespace solver
         //TODO:
         // return;
         Float rand_val = 1, rand_val_2 = -1;
-        // if (rand() % 100000 < 50000)
+        // if (rds() % 100000 < 50000)
         // {
         //     if (check_var_shift(var_idx,rand_val,true)) execute_critical_move(var_idx,rand_val);
         //     else if (check_var_shift(var_idx,rand_val_2,true)) execute_critical_move(var_idx,rand_val_2);
@@ -148,7 +178,7 @@ namespace solver
             if (check_var_shift_bool(var_idx,change_value,true)) execute_critical_move_mix(var_idx,change_value);
             return;
         }
-        if (rand() % 100000 < 50000)
+        if (rds() % 100000 < 50000)
         {
             // cout << _vars[var_idx].name <<endl;
             if (check_var_shift(var_idx,rand_val,true)) execute_critical_move_mix(var_idx,rand_val);
@@ -175,10 +205,10 @@ namespace solver
         int postive_value = (change_value < 0) ? 1 : -1;
         quad_coeff = nor_var->obj_quadratic_coeff;
         if (quad_coeff != 0) delta += quad_coeff * (change_value) * (old_value + new_value);
-        for (int linear_pos = 0; linear_pos < nor_var->obj_linear_coeff.size(); linear_pos++)
+        for (int linear_pos = 0; linear_pos < nor_var->obj_linear_coeff->size(); linear_pos++)
         {
-            li_var_idx = nor_var->obj_linear_coeff[linear_pos];
-            li_var_coeff = nor_var->obj_linear_constant_coeff[linear_pos];
+            li_var_idx = nor_var->obj_linear_coeff->at(linear_pos);
+            li_var_coeff = nor_var->obj_linear_constant_coeff->at(linear_pos);
             coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
         }
         coeff_value += nor_var->obj_constant_coeff;
@@ -209,10 +239,10 @@ namespace solver
         //      cout << quad_coeff * (change_value) * (old_value + new_value) << "  "  << quad_coeff * ((new_value * new_value) - (old_value * old_value)) << endl;
         // }
         // cout << quad_coeff * (change_value) * (old_value + new_value) << "  "  << quad_coeff * (new_value * new_value) - (old_value * old_value) << endl;
-        for (int linear_pos = 0; linear_pos < nor_var->obj_linear_coeff.size(); linear_pos++)
+        for (int linear_pos = 0; linear_pos < nor_var->obj_linear_coeff->size(); linear_pos++)
         {
-            li_var_idx = nor_var->obj_linear_coeff[linear_pos];
-            li_var_coeff = nor_var->obj_linear_constant_coeff[linear_pos];
+            li_var_idx = nor_var->obj_linear_coeff->at(linear_pos);
+            li_var_coeff = nor_var->obj_linear_constant_coeff->at(linear_pos);
             coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
         }
         coeff_value += nor_var->obj_constant_coeff;
@@ -268,10 +298,10 @@ namespace solver
         unordered_set<int> rand_unsat_idx;
         unordered_set<int>::iterator unsat_cl_rand(_unsat_constraints.begin());
         Float change_value;
-        std::advance(unsat_cl_rand, rand() % _unsat_constraints.size());
+        std::advance(unsat_cl_rand, rds() % _unsat_constraints.size());
         unsat_con = & (_constraints[* unsat_cl_rand]);
-        auto unsat_var_rand = unsat_con->var_coeff.begin();
-        std::advance(unsat_var_rand, rand() % unsat_con->var_coeff.size());
+        auto unsat_var_rand = unsat_con->var_coeff->begin();
+        std::advance(unsat_var_rand, rds() % unsat_con->var_coeff->size());
         var_idx = unsat_var_rand->first;
         // if (_vars[var_idx].is_bin)
         // {
@@ -406,10 +436,10 @@ namespace solver
         // if (bin_var->obj_quadratic_coeff != 0) cout << " bin var has quar exp error  " <<endl;
         // else 
         // {
-        for (int linear_pos = 0; linear_pos < bin_var->obj_linear_coeff.size(); linear_pos++)
+        for (int linear_pos = 0; linear_pos < bin_var->obj_linear_coeff->size(); linear_pos++)
         {
-            li_var_idx = bin_var->obj_linear_coeff[linear_pos];
-            li_var_coeff = bin_var->obj_linear_constant_coeff[linear_pos];
+            li_var_idx = bin_var->obj_linear_coeff->at(linear_pos);
+            li_var_coeff = bin_var->obj_linear_constant_coeff->at(linear_pos);
             coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
         }
         coeff_value += bin_var->obj_constant_coeff;
@@ -514,10 +544,10 @@ namespace solver
         // if (bin_var->obj_quadratic_coeff != 0) cout << " bin var has quar exp error  " <<endl;
         // else 
         // {
-        for (int linear_pos = 0; linear_pos < bin_var->obj_linear_coeff.size(); linear_pos++)
+        for (int linear_pos = 0; linear_pos < bin_var->obj_linear_coeff->size(); linear_pos++)
         {
-            li_var_idx = bin_var->obj_linear_coeff[linear_pos];
-            li_var_coeff = bin_var->obj_linear_constant_coeff[linear_pos];
+            li_var_idx = bin_var->obj_linear_coeff->at(linear_pos);
+            li_var_coeff = bin_var->obj_linear_constant_coeff->at(linear_pos);
             coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
         }
         coeff_value += bin_var->obj_constant_coeff;
@@ -583,14 +613,14 @@ namespace solver
         if (!pcon->is_sat)
         {
             int bin_var_num = _constraints[index].p_bin_vars.size();
-            int real_var_num = _constraints[index].var_coeff.size() - _constraints[index].p_bin_vars.size();
+            int real_var_num = _constraints[index].var_coeff->size() - _constraints[index].p_bin_vars.size();
             if (bin_var_num > 0) unsat_cls_num_with_bool++;
             else if (real_var_num > 0) unsat_cls_num_with_real++;
         }
         if (pcon->is_sat)
         {
             int bin_var_num = _constraints[index].p_bin_vars.size();
-            int real_var_num = _constraints[index].var_coeff.size() - _constraints[index].p_bin_vars.size();
+            int real_var_num = _constraints[index].var_coeff->size() - _constraints[index].p_bin_vars.size();
             if (bin_var_num > 0) unbounded_cls_num_with_bool++;
             else if (real_var_num > 0) unbounded_cls_num_with_real++;
         }
@@ -614,7 +644,7 @@ namespace solver
         Float coeff_value = 0;
         int li_var_idx;
         Float li_var_coeff;
-        a_coeff = & (pcon->var_coeff[var_pos]);
+        a_coeff = & (pcon->var_coeff->at(var_pos));
         for (int linear_pos = 0; linear_pos < a_coeff->obj_linear_coeff.size(); linear_pos++)
         {
             li_var_idx = a_coeff->obj_linear_coeff[linear_pos];
@@ -637,7 +667,7 @@ namespace solver
         Float li_var_coeff;
         Float quad_coeff;
         Float change_value = new_value - old_value;
-        a_coeff = & (pcon->var_coeff[var_pos]);
+        a_coeff = & (pcon->var_coeff->at(var_pos));
         quad_coeff = a_coeff->obj_quadratic_coeff;
         // if (quad_coeff != 0) delta += quad_coeff * (change_value) * (old_value + new_value);
         if (quad_coeff != 0) delta += quad_coeff * ((new_value * new_value) - (old_value * old_value));
@@ -672,36 +702,34 @@ namespace solver
         unsat_cls_num_with_real = 0;
         if (_constraints.size() != 0) avg_bound /= _constraints.size();
         //构建LS的信息,类里其它信息的构建,初始值的给出,约束的满足和不满足,初始化二进制变量的score:
-        if (problem_type != 0)
+        if (!has_assignment)
         {
-            for (int i = 0; i < _var_num; i++)
+            _cur_assignment.clear();
+            if (problem_type != 0)
             {
-                if (_vars[i].has_lower && _vars[i].has_upper)
+                for (int i = 0; i < _var_num; i++)
                 {
-                    Float average = (_vars[i].lower + _vars[i].upper) / 2;
-                    if (_vars[i].is_int) average = round(average);
-                    _cur_assignment.push_back(average);
+                    if (_vars[i].has_lower) 
+                    {  
+                        if (_int_vars.find(i) != _int_vars.end()) _cur_assignment.push_back(ceil(_vars[i].lower));
+                        _cur_assignment.push_back(_vars[i].lower);
+                    }
+                    else if (_vars[i].has_upper)
+                    {
+                        if (_int_vars.find(i) != _int_vars.end()) _cur_assignment.push_back(floor(_vars[i].upper));
+                        _cur_assignment.push_back(_vars[i].upper);
+                    }
+                    else _cur_assignment.push_back(0);
                 }
-                if (_vars[i].has_lower) 
-                {  
-                    if (_int_vars.find(i) != _int_vars.end()) _cur_assignment.push_back(ceil(_vars[i].lower));
-                    _cur_assignment.push_back(_vars[i].lower);
-                }
-                else if (_vars[i].has_upper)
-                {
-                    if (_int_vars.find(i) != _int_vars.end()) _cur_assignment.push_back(floor(_vars[i].upper));
-                    _cur_assignment.push_back(_vars[i].upper);
-                }
-                else _cur_assignment.push_back(0);
             }
-        }
-        else 
-        {
-            for (int i = 0; i < _var_num; i++)
+            else 
             {
-                if (_vars[i].has_lower) _cur_assignment.push_back(ceil(_vars[i].lower));
-                else if (_vars[i].has_upper) _cur_assignment.push_back(floor(_vars[i].upper));
-                else _cur_assignment.push_back(0);
+                for (int i = 0; i < _var_num; i++)
+                {
+                    if (_vars[i].has_lower) _cur_assignment.push_back(ceil(_vars[i].lower));
+                    else if (_vars[i].has_upper) _cur_assignment.push_back(floor(_vars[i].upper));
+                    else _cur_assignment.push_back(0);
+                }
             }
         }
         _unbounded_constraints.clear();
@@ -710,9 +738,9 @@ namespace solver
         {
             pcon = & (_constraints[poly_pos]);
             mono_delta = 0;
-            for (int mono_pos = 0; mono_pos < pcon->monomials.size(); mono_pos++)
+            for (int mono_pos = 0; mono_pos < pcon->monomials->size(); mono_pos++)
             {
-                mono_delta += pro_mono(pcon->monomials[mono_pos]);
+                mono_delta += pro_mono(pcon->monomials->at(mono_pos));
             }
             pcon->value = mono_delta;
             init_pro_con(pcon);
@@ -724,35 +752,36 @@ namespace solver
         if (is_feasible)
         {
             _object_weight = 1;
-            _best_assignment = _cur_assignment;
-            for (int mono_pos = 0; mono_pos < _object_monoials.size(); mono_pos++)
-            {
-                obj_delta += pro_mono(_object_monoials[mono_pos]);
-            }
-            _best_object_value = obj_delta;
+            update_best_solution();
+            // _best_assignment = _cur_assignment;
+            // for (int mono_pos = 0; mono_pos < _object_monoials.size(); mono_pos++)
+            // {
+            //     obj_delta += pro_mono(_object_monoials[mono_pos]);
+            // }
+            // _best_object_value = obj_delta;
         }
         _object_weight = 0;
         // init score;
         // for (int bin_size = 0; bin_size < _bool_vars.size(); bin_size++)
         // {
         if (problem_type != 2) return;
-        for (int var_pos : _bool_vars)
-        {
-            // var_pos = _bool_vars[bin_size];
-            bin_var = & (_vars[var_pos]);
-            // score = 0;
-            // is_pos = (_cur_assignment[var_pos] > 0);
-            for (int con_size : bin_var->constraints)
-            {
-                pcon =  & (_constraints[con_size]);
-                pcon->p_bin_vars.push_back(var_pos);
+        // for (int var_pos : _bool_vars)
+        // {
+        //     // var_pos = _bool_vars[bin_size];
+        //     bin_var = & (_vars[var_pos]);
+        //     // score = 0;
+        //     // is_pos = (_cur_assignment[var_pos] > 0);
+        //     for (int con_size : *bin_var->constraints)
+        //     {
+        //         pcon =  & (_constraints[con_size]);
+        //         pcon->p_bin_vars.push_back(var_pos);
             
-            }
-            // coeff_postive = pro_var_delta_in_obj(bin_var, var_pos, is_pos);
-            // score += _object_weight * coeff_postive;
-            // bin_var->obj_score = _object_weight * coeff_postive;
-            // bin_var->bool_score = score;
-        }
+        //     }
+        //     // coeff_postive = pro_var_delta_in_obj(bin_var, var_pos, is_pos);
+        //     // score += _object_weight * coeff_postive;
+        //     // bin_var->obj_score = _object_weight * coeff_postive;
+        //     // bin_var->bool_score = score;
+        // }
     }
 
     void qp_solver::update_weight()
@@ -813,7 +842,7 @@ namespace solver
     {
         // cout << change_value << " ";
         if (_vars[var_idx].equal_bound || _vars[var_idx].is_constant) return false;
-        if (fabs(change_value) < 1e-15) return false;
+        // if (fabs(change_value) < 1e-15) return false;
         if (change_value != change_value) return false;
         if (change_value < -__DBL_MAX__  || change_value > __DBL_MAX__) return false;
         if (change_value == 0) return false;
@@ -823,78 +852,85 @@ namespace solver
             // if (_vars[var_idx].recent_value->contains(_cur_assignment[var_idx] + change_value)) return false;
         }   
         Float post_val = _cur_assignment[var_idx] + change_value;
-        
-        // 检查整数变量约束
-        if (_vars[var_idx].is_int)
-        {
-            if (post_val != round(post_val)) return false;
-        }
-        
+        if (post_val < -1e20 || post_val > 1e20) return false;
         // if (_bool_vars.find(var_idx) != _bool_vars.end())
         // {
         //     if (post_val != 0 && post_val != 1) return false;
         // }
-        if (change_value < 0)
+        if (portfolio_mode != 8)
         {
-            // return !_vars[var_idx].has_lower || post_val >= _vars[var_idx].lower;
-            if (_vars[var_idx].has_lower && post_val <= _vars[var_idx].lower)
-                change_value = _vars[var_idx].lower - _cur_assignment[var_idx];
+            if (change_value < 0)
+            {
+                // return !_vars[var_idx].has_lower || post_val >= _vars[var_idx].lower;
+                if (_vars[var_idx].has_lower && post_val <= _vars[var_idx].lower)
+                    change_value = _vars[var_idx].lower - _cur_assignment[var_idx];
+            }
+            else 
+            {
+                // return !_vars[var_idx].has_upper || post_val <= _vars[var_idx].upper;
+                if (_vars[var_idx].has_upper && post_val >= _vars[var_idx].upper)
+                    change_value = _vars[var_idx].upper - _cur_assignment[var_idx];
+            }
+            if (change_value == 0) return false;
+            post_val = _cur_assignment[var_idx] + change_value;
+            bool lower_sat = !_vars[var_idx].has_lower || (post_val >= _vars[var_idx].lower - eb);
+            bool upper_sat = !_vars[var_idx].has_upper || (post_val <= _vars[var_idx].upper + eb);
+            return lower_sat && upper_sat;
+            // return true;
         }
         else 
         {
-            // return !_vars[var_idx].has_upper || post_val <= _vars[var_idx].upper;
-            if (_vars[var_idx].has_upper && post_val >= _vars[var_idx].upper)
-                change_value = _vars[var_idx].upper - _cur_assignment[var_idx];
+            bool lower_sat = !_vars[var_idx].has_lower || (post_val >= _vars[var_idx].lower - eb);
+            bool upper_sat = !_vars[var_idx].has_upper || (post_val <= _vars[var_idx].upper + eb);
+            return lower_sat && upper_sat;
         }
-        if (change_value == 0) return false;
-        return true;
-        bool lower_sat = !_vars[var_idx].has_lower || post_val >= _vars[var_idx].lower;
-        bool upper_sat = !_vars[var_idx].has_upper || post_val <= _vars[var_idx].upper;
-        return lower_sat && upper_sat;
     }
 
-    bool qp_solver::check_var_shift(int var_idx, double & change_value, bool rand_flag)
-    {
-        if (_vars[var_idx].equal_bound || _vars[var_idx].is_constant) return false;
-        if (fabs(change_value) < 1e-15) return false;
-        if (change_value != change_value) return false;
-        if (change_value < -__DBL_MAX__  || change_value > __DBL_MAX__) return false;
-        if (change_value == 0) return false;
-        if (!rand_flag)
-        {
-            if ((change_value > 0 && _steps <= _vars[var_idx].last_pos_step) || (change_value < 0 && _steps <= _vars[var_idx].last_neg_step)) return false;
-            // if (_vars[var_idx].recent_value->contains(_cur_assignment[var_idx] + change_value)) return false;
-        }   
-        Float post_val = _cur_assignment[var_idx] + change_value;
-        
-        // 检查整数变量约束
-        if (_vars[var_idx].is_int)
-        {
-            if (post_val != round(post_val)) return false;
-        }
-        
-        // if (_bool_vars.find(var_idx) != _bool_vars.end())
-        // {
-        //     if (post_val != 0 && post_val != 1) return false;
-        // }
-        if (change_value < 0)
-        {
-            // return !_vars[var_idx].has_lower || post_val >= _vars[var_idx].lower;
-            if (_vars[var_idx].has_lower && post_val <= _vars[var_idx].lower)
-                change_value = _vars[var_idx].lower - _cur_assignment[var_idx];
-        }
-        else 
-        {
-            // return !_vars[var_idx].has_upper || post_val <= _vars[var_idx].upper;
-            if (_vars[var_idx].has_upper && post_val >= _vars[var_idx].upper)
-                change_value = _vars[var_idx].upper - _cur_assignment[var_idx];
-        }
-        if (change_value == 0) return false;
-        return true;
-        bool lower_sat = !_vars[var_idx].has_lower || post_val >= _vars[var_idx].lower;
-        bool upper_sat = !_vars[var_idx].has_upper || post_val <= _vars[var_idx].upper;
-        return lower_sat && upper_sat;
-    }
+    // bool qp_solver::check_var_shift(int var_idx, double & change_value, bool rand_flag)
+    // {
+    //     if (_vars[var_idx].equal_bound || _vars[var_idx].is_constant) return false;
+    //     if (fabs(change_value) < 1e-15) return false;
+    //     if (change_value != change_value) return false;
+    //     if (change_value < -__DBL_MAX__  || change_value > __DBL_MAX__) return false;
+    //     if (change_value == 0) return false;
+    //     if (!rand_flag)
+    //     {
+    //         if ((change_value > 0 && _steps <= _vars[var_idx].last_pos_step) || (change_value < 0 && _steps <= _vars[var_idx].last_neg_step)) return false;
+    //         // if (_vars[var_idx].recent_value->contains(_cur_assignment[var_idx] + change_value)) return false;
+    //     }   
+    //     Float post_val = _cur_assignment[var_idx] + change_value;
+    //     // if (_bool_vars.find(var_idx) != _bool_vars.end())
+    //     // {
+    //     //     if (post_val != 0 && post_val != 1) return false;
+    //     // }
+    //     if (portfolio_mode != 8)
+    //     {
+    //         if (change_value < 0)
+    //         {
+    //             // return !_vars[var_idx].has_lower || post_val >= _vars[var_idx].lower;
+    //             if (_vars[var_idx].has_lower && post_val <= _vars[var_idx].lower)
+    //                 change_value = _vars[var_idx].lower - _cur_assignment[var_idx];
+    //         }
+    //         else 
+    //         {
+    //             // return !_vars[var_idx].has_upper || post_val <= _vars[var_idx].upper;
+    //             if (_vars[var_idx].has_upper && post_val >= _vars[var_idx].upper)
+    //                 change_value = _vars[var_idx].upper - _cur_assignment[var_idx];
+    //         }
+    //         if (change_value == 0) return false;
+    //         post_val = _cur_assignment[var_idx] + change_value;
+    //         bool lower_sat = !_vars[var_idx].has_lower || (post_val >= _vars[var_idx].lower - eb);
+    //         bool upper_sat = !_vars[var_idx].has_upper || (post_val <= _vars[var_idx].upper + eb);
+    //         return lower_sat && upper_sat;
+    //         // return true;
+    //     }
+    //     else 
+    //     {
+    //         bool lower_sat = !_vars[var_idx].has_lower || (post_val >= _vars[var_idx].lower - eb);
+    //         bool upper_sat = !_vars[var_idx].has_upper || (post_val <= _vars[var_idx].upper + eb);
+    //         return lower_sat && upper_sat;
+    //     }
+    // }
 
     bool qp_solver::check_var_shift_bool(int var_idx, Float & change_value, bool rand_flag)
     {
@@ -922,6 +958,10 @@ namespace solver
 #ifdef DEBUG
         cout << " var pos: "  << var_pos << "change_value: " << change_value << endl;
 #endif
+        // if (parallel_tid ==0) 
+        // {
+        //     cout << " var pos: "  << var_pos << "change_value: " << change_value << endl;
+        // }
         polynomial_constraint * pcon;
         Float var_delta, con_delta;
         Float old_value = _cur_assignment[var_pos];
@@ -934,7 +974,14 @@ namespace solver
         int cur_score;
         _cur_assignment[var_pos] += change_value;
         nor_var = & (_vars[var_pos]);
-        for (int con_size : nor_var->constraints)
+        if (true)
+        {
+            if (nor_var->is_bin && _cur_assignment[var_pos] != 0 && _cur_assignment[var_pos] != 1) bug_flag = true;
+            if (nor_var->is_int && ceil(_cur_assignment[var_pos]) != _cur_assignment[var_pos]) bug_flag = true;
+            if (nor_var->has_lower && _cur_assignment[var_pos] < nor_var->lower) bug_flag = true;
+            if (nor_var->has_upper && _cur_assignment[var_pos] > nor_var->upper) bug_flag = true;
+        }
+        for (int con_size : *nor_var->constraints)
         {
             pcon = & (_constraints[con_size]);
             var_delta = pro_var_value_delta(nor_var, pcon, var_pos, old_value, old_value + change_value);
@@ -963,8 +1010,8 @@ namespace solver
             //     bin_var->bool_score = cur_score;
             // }
         }
-        if (change_value < 0) _vars[var_pos].last_pos_step = _steps + rand() % 10 + 3;
-        else _vars[var_pos].last_neg_step = _steps + rand() % 10 + 3;
+        if (change_value < 0) _vars[var_pos].last_pos_step = _steps + rds() % 10 + 3;
+        else _vars[var_pos].last_neg_step = _steps + rds() % 10 + 3;
         is_cur_feasible = _unsat_constraints.empty();
         if (is_cur_feasible && !is_feasible)
         {
@@ -976,32 +1023,72 @@ namespace solver
 
     void qp_solver::update_best_solution()
     {
-        //TODO: 增量式修改
         Float obj_delta = 0;
         for (int mono_pos = 0; mono_pos < _object_monoials.size(); mono_pos++)
         {
             obj_delta += pro_mono(_object_monoials[mono_pos]);
         }
+        if (open_terminate) {
+            // fprintf(stderr, "\b -> success adjust");
+            assert(gauss_adjust_flag == false);
+            terminate = true;
+        }
+        else if (gauss_adjust_flag) {
+            if (obj_delta > _best_object_value) return;
+                
+            // fprintf(stderr, "***[update_best_solution]*** gauss find a better solution (%.15lf)\n", obj_delta);
+            adjust_solver->terminate = false;
+            adjust_solver->has_assignment = true;
+            adjust_solver->_cur_assignment = _cur_assignment;
+            adjust_solver->_cut_off = 0.05;
+            adjust_solver->local_search();
+        }
+
         if (_best_object_value > obj_delta)
         {
+            _non_improve_step = 0;
             _best_object_value = obj_delta;
             _best_assignment = _cur_assignment;
             _best_steps = _steps;
+            _best_time = TimeElapsed();
+            if (output_mode == 1)
+            {
+                if (is_minimize) cout << std::fixed << _best_object_value + _obj_constant<<" "<< _best_time << endl;
+                else cout << - (-_best_object_value + _obj_constant) <<" "<< _best_time << endl;
+            }
+            if (parallel_solver != nullptr) parallel_solver->update_best_solution(_best_object_value, _obj_constant, var_name, _best_assignment);
         }
+
+        // if (open_terminate) fprintf(stderr, ", sol: %0.15lf (now best: %0.15lf)\n", obj_delta, _best_object_value);
+        // else fprintf(stderr, "\n");
     }
     
     void qp_solver::print_best_solution()
     {
         int index = 0;
+
+
+        if (_best_object_value == INT64_MAX) cout << INT64_MAX;
+        else
+        {
+            if (is_minimize)
+                cout << std::fixed << "obj_value " ;
+            else 
+                cout << std::fixed << "obj_value " ;
+            if (is_minimize) cout << _best_object_value + _obj_constant;
+            else cout << -_best_object_value + _obj_constant;
+        }
+
         cout << endl;
         for (auto sol : _best_assignment)
         {
             // cout << "bound" << index << ": ";
             // if (sol != 0)
-            if (_vars[index].name == "objconstant") 
-                cout <<_vars[index].name << "     " << std::fixed << std::setprecision(15) << _obj_constant << endl;
+            // if (_vars[index].name == "objconstant") 
+            if (false)
+                cout <<_vars[index].name << "     " << fmt::format("{}", _obj_constant) << endl;
             else 
-                cout <<_vars[index].name << "     " << std::fixed << std::setprecision(15) << sol << endl;
+                cout <<_vars[index].name << "     " << fmt::format("{}", sol) << endl;
             index++;
         }
     }

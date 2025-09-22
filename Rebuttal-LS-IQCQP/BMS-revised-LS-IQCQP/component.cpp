@@ -676,12 +676,6 @@ namespace solver
         {
             for (int i = 0; i < _var_num; i++)
             {
-                if (_vars[i].has_lower && _vars[i].has_upper)
-                {
-                    Float average = (_vars[i].lower + _vars[i].upper) / 2;
-                    if (_vars[i].is_int) average = round(average);
-                    _cur_assignment.push_back(average);
-                }
                 if (_vars[i].has_lower) 
                 {  
                     if (_int_vars.find(i) != _int_vars.end()) _cur_assignment.push_back(ceil(_vars[i].lower));
@@ -724,12 +718,13 @@ namespace solver
         if (is_feasible)
         {
             _object_weight = 1;
-            _best_assignment = _cur_assignment;
-            for (int mono_pos = 0; mono_pos < _object_monoials.size(); mono_pos++)
-            {
-                obj_delta += pro_mono(_object_monoials[mono_pos]);
-            }
-            _best_object_value = obj_delta;
+            update_best_solution();
+            // _best_assignment = _cur_assignment;
+            // for (int mono_pos = 0; mono_pos < _object_monoials.size(); mono_pos++)
+            // {
+            //     obj_delta += pro_mono(_object_monoials[mono_pos]);
+            // }
+            // _best_object_value = obj_delta;
         }
         _object_weight = 0;
         // init score;
@@ -823,13 +818,6 @@ namespace solver
             // if (_vars[var_idx].recent_value->contains(_cur_assignment[var_idx] + change_value)) return false;
         }   
         Float post_val = _cur_assignment[var_idx] + change_value;
-        
-        // 检查整数变量约束
-        if (_vars[var_idx].is_int)
-        {
-            if (post_val != round(post_val)) return false;
-        }
-        
         // if (_bool_vars.find(var_idx) != _bool_vars.end())
         // {
         //     if (post_val != 0 && post_val != 1) return false;
@@ -866,13 +854,6 @@ namespace solver
             // if (_vars[var_idx].recent_value->contains(_cur_assignment[var_idx] + change_value)) return false;
         }   
         Float post_val = _cur_assignment[var_idx] + change_value;
-        
-        // 检查整数变量约束
-        if (_vars[var_idx].is_int)
-        {
-            if (post_val != round(post_val)) return false;
-        }
-        
         // if (_bool_vars.find(var_idx) != _bool_vars.end())
         // {
         //     if (post_val != 0 && post_val != 1) return false;
@@ -977,6 +958,7 @@ namespace solver
     void qp_solver::update_best_solution()
     {
         //TODO: 增量式修改
+        // cout << "update_best_solution" << print_flag<< endl;
         Float obj_delta = 0;
         for (int mono_pos = 0; mono_pos < _object_monoials.size(); mono_pos++)
         {
@@ -984,6 +966,8 @@ namespace solver
         }
         if (_best_object_value > obj_delta)
         {
+            if (print_type == 1)
+                cout << obj_delta + _obj_constant << " " << TimeElapsed() << endl;
             _best_object_value = obj_delta;
             _best_assignment = _cur_assignment;
             _best_steps = _steps;

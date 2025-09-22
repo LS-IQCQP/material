@@ -2,18 +2,6 @@
 namespace solver
 {
     
-    // 约束tabu相关函数实现
-    void qp_solver::set_constraint_tabu_enabled(bool enabled)
-    {
-        _constraint_tabu_enabled = enabled;
-    }
-
-    bool qp_solver::is_constraint_tabu(int constraint_idx)
-    {
-        if (!_constraint_tabu_enabled) return false;
-        return _constraints[constraint_idx].tabu_step > _steps;
-    }
-    
     void qp_solver::execute_critical_move_mix_more(int var_pos, Float change_value)
     {
         execute_critical_move_mix(var_pos, change_value);
@@ -42,34 +30,6 @@ namespace solver
         score = INT32_MIN;
         int cnt;
         int op_size = _operation_vars_pair.size();
-        // 仅在开启tabu时检查并使用_cons_pos
-        if (_constraint_tabu_enabled)
-        {
-            // 检查 _operation_vars_pair.size() 和 _operation_cons_pos 中对应 _operation_vars_pair 的条目数量
-            // 由于 _operation_cons_pos 包含对应 _operation_vars 的条目（值为 -1）和对应 _operation_vars_pair 的条目（值为约束索引），
-            // 我们需要确保只检查对应 _operation_vars_pair 的条目
-        {
-            int cons_pos_size = 0;
-            for (int i = 0; i < _operation_cons_pos.size(); i++)
-            {
-                if (_operation_cons_pos[i] != -1) // -1 表示对应 _operation_vars 的条目
-                {
-                    cons_pos_size++;
-                }
-            }
-            // if (op_size != cons_pos_size)
-            // {
-            //     // 只在最后输出一次错误信息
-            //     static bool error_reported = false;
-            //     if (!error_reported) {
-            //         cout << "Error: _operation_vars_pair.size() = " << op_size 
-            //              << " != _operation_cons_pos.size() (excluding -1) = " << cons_pos_size << endl;
-            //         error_reported = true;
-            //     }
-            //     return;
-            // }
-        }
-        }
         bool is_bms;
         if (op_size <= bms) 
         {
@@ -83,37 +43,7 @@ namespace solver
         }
         int cur_var, cur_var_2;
         Float cur_shift, cur_shift_2, cur_score;
-        int rand_index, cons_pos = -1, cur_cons_pos = -1;
-        
-        // 创建 _operation_cons_pos 中对应 _operation_vars_pair 的索引映射
-        vector<int> pair_cons_indices;
-        if (_constraint_tabu_enabled)
-        {
-            // 计算 _operation_cons_pos 中对应 _operation_vars_pair 的条目数量
-            int cons_pos_size = 0;
-            for (int i = 0; i < _operation_cons_pos.size(); i++)
-            {
-                if (_operation_cons_pos[i] != -1) // -1 表示对应 _operation_vars 的条目
-                {
-                    cons_pos_size++;
-                    pair_cons_indices.push_back(i);
-                }
-            }
-            // 如果 _operation_vars_pair 为空，但 _operation_cons_pos 中有非 -1 的条目，
-            // 说明有其他地方添加了 _operation_cons_pos 但没有添加对应的 _operation_vars_pair
-            // if (op_size == 0 && cons_pos_size > 0)
-            // {
-            //     // 只在最后输出一次错误信息
-            //     static bool error_reported = false;
-            //     if (!error_reported) {
-            //         cout << "Error: _operation_vars_pair.size() = " << op_size 
-            //              << " != _operation_cons_pos.size() (excluding -1) = " << cons_pos_size << endl;
-            //         error_reported = true;
-            //     }
-            //     return;
-            // }
-        }
-        
+        int rand_index;
         for (int i = 0; i < cnt; i++) 
         {
             if (is_bms) 
@@ -123,11 +53,7 @@ namespace solver
                 cur_var_2 = _operation_vars_pair[rand_index].var_2;
                 cur_shift = _operation_vars_pair[rand_index].value_1;
                 cur_shift_2 = _operation_vars_pair[rand_index].value_2;
-                if (_constraint_tabu_enabled && rand_index < pair_cons_indices.size()) 
-                    cur_cons_pos = _operation_cons_pos[pair_cons_indices[rand_index]];
                 _operation_vars_pair[rand_index] = _operation_vars_pair[op_size - i - 1];
-                if (_constraint_tabu_enabled && rand_index < pair_cons_indices.size() && (op_size - i - 1) < pair_cons_indices.size())
-                    _operation_cons_pos[pair_cons_indices[rand_index]] = _operation_cons_pos[pair_cons_indices[op_size - i - 1]];
             } 
             else 
             {
@@ -135,8 +61,6 @@ namespace solver
                 cur_var_2 = _operation_vars_pair[i].var_2;
                 cur_shift = _operation_vars_pair[i].value_1;
                 cur_shift_2 = _operation_vars_pair[i].value_2;
-                if (_constraint_tabu_enabled && i < pair_cons_indices.size()) 
-                    cur_cons_pos = _operation_cons_pos[pair_cons_indices[i]];
             }
             if (is_cur_feasible)
                 cur_score = calculate_score_compensate_cons_mix(cur_var, cur_shift, cur_var_2, cur_shift_2, true);
@@ -156,12 +80,7 @@ namespace solver
                 var_idx_2 = cur_var_2;
                 change_value_1 = cur_shift;
                 change_value_2 = cur_shift_2;
-                cons_pos = cur_cons_pos;
             }
-        }
-        if (cons_pos != -1 && _constraint_tabu_enabled)
-        {
-            _constraints[cons_pos].tabu_step = _steps + rand() % 10 + 3;
         }
     }
 
@@ -361,7 +280,6 @@ namespace solver
             {
                 pair_vars cur(var_pos, var_idx, change_value_1, change_value_bin);
                 _operation_vars_pair.push_back(cur);
-                _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
             }
         }
         _cur_assignment[var_idx] -= change_value_bin;
@@ -447,9 +365,6 @@ namespace solver
                         // _operation_value.push_back(roots[0]);
                         pair_vars cur(var_pos, var_idx, change_value_1, roots[0]);
                         _operation_vars_pair.push_back(cur);
-                        if (_constraint_tabu_enabled) {
-                            _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
-                        }
                     }
                     if (check_var_shift(var_idx, roots[1], rand_flag))
                     {
@@ -457,9 +372,6 @@ namespace solver
                         // _operation_value.push_back(roots[1]);
                         pair_vars cur(var_pos, var_idx, change_value_1, roots[1]);
                         _operation_vars_pair.push_back(cur);
-                        if (_constraint_tabu_enabled) {
-                            _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
-                        }
                     }
                     // if (check_var_shift(var_idx, root_avg, rand_flag))
                     // {
@@ -499,9 +411,6 @@ namespace solver
                         // _operation_value.push_back(roots[0]);
                         pair_vars cur(var_pos, var_idx, change_value_1, roots[0]);
                         _operation_vars_pair.push_back(cur);
-                        if (_constraint_tabu_enabled) {
-                            _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
-                        }
                     }
                 } 
                 else 
@@ -538,7 +447,6 @@ namespace solver
                         // _operation_value.push_back(change_value);
                         pair_vars cur(var_pos, var_idx, change_value_1, change_value);
                         _operation_vars_pair.push_back(cur);
-                        _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
                         // if (change_value==0)
                         //     cout <<"here "<< change_value;
                     }
@@ -554,7 +462,6 @@ namespace solver
                     {
                         pair_vars cur(var_pos, var_idx, change_value_1, average_change_value);
                         _operation_vars_pair.push_back(cur);
-                        _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
                     }
                 }
             }
@@ -598,9 +505,6 @@ namespace solver
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
         _operation_vars_pair.clear();
-        if (_constraint_tabu_enabled) {
-            _operation_cons_pos.clear();  // 清空约束位置映射
-        }
         // if (_unsat_constraints.size() > 50)
         if (false)
         {
@@ -636,13 +540,6 @@ namespace solver
         {
             _operation_vars.push_back(_operation_vars_sub[i]);
             _operation_value.push_back(_operation_value_sub[i]);
-            // 注意：这里不应该添加 _operation_cons_pos，因为 compensate_move 函数只处理 _operation_vars_pair
-        }
-        
-        // 清空 _operation_cons_pos，因为第一个循环添加的条目对应 _operation_vars，不是 _operation_vars_pair
-        // 第二个循环会重新添加对应 _operation_vars_pair 的条目
-        if (_constraint_tabu_enabled) {
-            _operation_cons_pos.clear();
         }
         for (int i = 0; i < _operation_vars.size(); i++)
         {
@@ -721,7 +618,6 @@ namespace solver
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
         _operation_vars_pair.clear();
-        _operation_cons_pos.clear();  // 清空约束位置映射
         _obj_vars_in_unbounded_constraint.clear();//TODO:改成两个
         _obj_bin_vars_in_unbounded_constraint.clear();//TODO:改成两个
         for (int var_pos : _vars_in_obj)
@@ -796,56 +692,6 @@ namespace solver
                     else symflag = -1;
                     best_value = linear_coeff_value / ( - 2 * obj_var->obj_quadratic_coeff);
                 }
-                if (obj_var->constraints.size() == 0)
-                {
-                    no_cons_int_flag = true;
-                    if (symflag == 1)
-                    {
-                        Float best_axis;
-                        if (_vars[var_pos].is_int) 
-                        {
-                            best_axis = round(best_value);
-                        best_axis = best_axis - _cur_assignment[var_pos];
-                        }
-                        else
-                        {
-                            best_axis = best_value - _cur_assignment[var_pos];
-                        }
-                        if (check_var_shift(var_pos, best_axis, false))
-                        {
-                            _operation_vars.push_back(var_pos);
-                            _operation_value.push_back(best_axis);
-                            if (_constraint_tabu_enabled) {
-                                _operation_cons_pos.push_back(-1);  // 没有约束关联
-                            }
-                            _obj_vars_in_unbounded_constraint.insert(var_pos);
-                        }
-                    }
-                    else if (best_value = INT32_MIN)
-                    {
-                        best_value = -1;
-                        if (check_var_shift(var_pos, best_value, false))
-                        {
-                            _operation_vars.push_back(var_pos);
-                            _operation_value.push_back(best_value);
-                            if (_constraint_tabu_enabled) {
-                                _operation_cons_pos.push_back(-1);  // 没有约束关联
-                            }
-                            _obj_vars_in_unbounded_constraint.insert(var_pos);
-                        }
-                    }
-                    else if (best_value == INT32_MAX)
-                    {
-                        best_value = 1;
-                        if (check_var_shift(var_pos, best_value, false))
-                        {
-                            _operation_vars.push_back(var_pos);
-                            _operation_value.push_back(best_value);
-                            _operation_cons_pos.push_back(-1);  // 没有约束关联
-                            _obj_vars_in_unbounded_constraint.insert(var_pos);
-                        }
-                    }
-                }
                 for (int con_pos: obj_var->constraints)
                 {
                     unbound_con = & (_constraints[con_pos]);
@@ -866,10 +712,7 @@ namespace solver
                         if (unbound_con->is_equal) continue;
                         delta = unbound_con->bound - unbound_con->value;
                         a_coeff = &(unbound_con->var_coeff[var_pos]);
-                        // 注意：insert_var_change_value_sat 是为 _operation_vars 设计的，不是为 _operation_vars_pair 设计的
-                        // 这里应该使用专门为 _operation_vars_pair 设计的函数，或者修改逻辑
-                        // 暂时注释掉这个调用，因为它会导致 _operation_cons_pos 大小不匹配
-                        // insert_var_change_value_sat(var_pos, a_coeff, delta, unbound_con, symflag, best_value, false);
+                        insert_var_change_value_sat(var_pos, a_coeff, delta, unbound_con, symflag, best_value, false);
                         _obj_vars_in_unbounded_constraint.insert(var_pos);
                     }
                 }
@@ -878,20 +721,12 @@ namespace solver
                 // if (symflag == 1)
                 {
                     Float best_axis;
-                    if (_vars[var_pos].is_int) 
-                    {
-                        best_axis = round(best_value);
+                    if (_vars[var_pos].is_int) best_axis = round(best_value);
                     best_axis = best_axis - _cur_assignment[var_pos];
-                    }
-                    else
-                    {
-                        best_axis = best_value - _cur_assignment[var_pos];
-                    }
-                    if (check_var_shift(var_pos, best_axis, false))
+                    if (check_var_shift(var_pos, best_value, false))
                     {
                         _operation_vars.push_back(var_pos);
                         _operation_value.push_back(best_axis);
-                        _operation_cons_pos.push_back(-1);  // 没有约束关联
                         _obj_vars_in_unbounded_constraint.insert(var_pos);
                     }
                 }
@@ -905,7 +740,6 @@ namespace solver
                         {
                             _operation_vars.push_back(var_pos);
                             _operation_value.push_back(best_bound);
-                            _operation_cons_pos.push_back(-1);  // 没有约束关联
                         }
                     }
                     if (best_value == INT32_MIN && _vars[var_pos].has_lower)
@@ -915,7 +749,6 @@ namespace solver
                         {
                             _operation_vars.push_back(var_pos);
                             _operation_value.push_back(best_bound);
-                            _operation_cons_pos.push_back(-1);  // 没有约束关联
                         }
                     }
                 }
@@ -926,8 +759,6 @@ namespace solver
             // if (_operation_value_sub[i] != 1 && _operation_value_sub[i] != -1) cout <<"??????" <<endl;
             _operation_vars.push_back(_operation_vars_sub[i]);
             _operation_value.push_back(_operation_value_sub[i]);
-            // 注意：_operation_cons_pos 已经在 insert_var_change_value_sat_bin 中添加了对应的条目
-            // 这里不需要再添加，因为 _operation_vars_sub 对应的 _operation_cons_pos 条目已经存在
         }
         // for (int i = 0; i < _operation_vars.size(); i++)
         // {
@@ -950,12 +781,7 @@ namespace solver
             if (symvalue == INT32_MIN && _vars[var_idx].has_lower) change_value = _vars[var_idx].lower - _cur_assignment[var_idx];
             if (symvalue == INT32_MAX && _vars[var_idx].has_upper) change_value = _vars[var_idx].upper - _cur_assignment[var_idx];
         }
-        if (_vars[var_idx].is_int) 
-        {
-            change_value = round(change_value);
-            // 检查四舍五入后的值是否仍然满足约束
-            if (change_value == INT32_MAX) return false;
-        }
+        if (_vars[var_idx].is_int) change_value = round(change_value);
         all_coeff * first_coeff = &(pcon->var_coeff[var_idx]);
         var * second_var;
         bool is_have = false;
@@ -966,8 +792,6 @@ namespace solver
         {
             second_var = & _vars[coeff.first];
             if (coeff.first == var_idx) continue;
-            // 检查约束是否在tabu状态
-            if (_constraint_tabu_enabled && is_constraint_tabu(pcon->index)) continue;
             Float change_value = INT32_MAX;
             if (symflag == 1) change_value = symvalue - _cur_assignment[var_idx];
             else if (symflag == 0)
@@ -988,9 +812,6 @@ namespace solver
                     // cout << _vars[var_idx].name << " " << _vars[coeff.first].name << endl;
                     pair_vars cur(var_idx, coeff.first, change_value, sub_change_value);
                     _operation_vars_pair.push_back(cur);
-                    if (_constraint_tabu_enabled) {
-                        _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
-                    }
                     is_have = true;
                 }
             }
@@ -1016,9 +837,6 @@ namespace solver
                     pair_vars cur(var_idx, coeff.first, change_value, sub_change_value);
                     // cout << change_value << " "  << sub_change_value << endl;
                     _operation_vars_pair.push_back(cur);
-                    if (_constraint_tabu_enabled) {
-                        _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
-                    }
                     is_have = true;
                 }
             }
@@ -1043,8 +861,6 @@ namespace solver
         for (auto coeff : pcon->var_coeff)
         {
             if (coeff.first == var_idx) continue;
-            // 检查约束是否在tabu状态
-            if (_constraint_tabu_enabled && is_constraint_tabu(pcon->index)) continue;
             sub_change_value = (- change_value * first_coeff->obj_constant_coeff) / coeff.second.obj_constant_coeff;
             // if (calculate_obj_descent_two_vars_mix(var_idx, change_value, coeff.first, sub_change_value) >= 0) continue;
             if (_vars[coeff.first].is_bin) 
@@ -1060,9 +876,6 @@ namespace solver
                     if (calculate_obj_descent_two_vars_mix(var_idx, change_value, coeff.first, could_change) >= 0) continue;
                     pair_vars cur(var_idx, coeff.first, change_value , could_change);
                     _operation_vars_pair.push_back(cur);
-                    if (_constraint_tabu_enabled) {
-                        _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
-                    }
                     is_have = true;
                 }
             }
@@ -1082,9 +895,6 @@ namespace solver
                     // cout << _vars[var_idx].name << " " << _vars[coeff.first].name << endl;
                     pair_vars cur(var_idx, coeff.first, change_value , sub_change_value);
                     _operation_vars_pair.push_back(cur);
-                    if (_constraint_tabu_enabled) {
-                        _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
-                    }
                     is_have = true;
                 }
             }
@@ -1116,9 +926,6 @@ namespace solver
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
         _operation_vars_pair.clear();
-        if (_constraint_tabu_enabled) {
-            _operation_cons_pos.clear();  // 清空约束位置映射
-        }
         // cout << _obj_vars_in_unbounded_constraint.size() << endl;
         // cout << _obj_bin_vars_in_unbounded_constraint.size() << endl;
         if (_obj_vars_in_unbounded_constraint.size() != 0)
@@ -1146,8 +953,6 @@ namespace solver
             if (!_vars[var_pos].is_bin) 
             {
                 // if (_vars[var_pos].name =="b1") cout << ".....";
-                bool add_flag = false;
-                bool sub_flag = false;
                 op_num = _operation_vars.size();
                 obj_var = & (_vars[var_pos]);
                 linear_coeff_value = obj_var->obj_constant_coeff;
@@ -1155,8 +960,6 @@ namespace solver
                 {
                     li_var_idx = obj_var->obj_linear_coeff[linear_pos];
                     li_var_coeff = obj_var->obj_linear_constant_coeff[linear_pos];
-                    if (_cur_assignment[li_var_idx] * li_var_coeff > 0) sub_flag = true;
-                    else if (_cur_assignment[li_var_idx] * li_var_coeff < 0) add_flag = true;
                     linear_coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
                 }
                 if (obj_var->obj_quadratic_coeff == 0)
@@ -1171,29 +974,6 @@ namespace solver
                     if (obj_var->obj_quadratic_coeff > 0) symflag = 1;
                     else symflag = -1;
                     best_value = linear_coeff_value / ( - 2 * obj_var->obj_quadratic_coeff);
-                }
-                if (obj_var->constraints.size() == 0)
-                {
-                    if (add_flag)
-                    {
-                        best_value = 1;
-                        if (check_var_shift(var_pos, best_value, false))
-                        {
-                            _operation_vars.push_back(var_pos);
-                            _operation_value.push_back(best_value);
-                            _operation_cons_pos.push_back(-1);  // 没有约束关联
-                        }
-                    }
-                    else if (sub_flag)
-                    {
-                        best_value = -1;
-                        if (check_var_shift(var_pos, best_value, false))
-                        {
-                            _operation_vars.push_back(var_pos);
-                            _operation_value.push_back(best_value);
-                            _operation_cons_pos.push_back(-1);  // 没有约束关联
-                        }
-                    }
                 }
                 for (int con_pos: obj_var->constraints)
                 {
@@ -1215,30 +995,19 @@ namespace solver
                         if (unbound_con->is_equal) continue;
                         delta = unbound_con->bound - unbound_con->value;
                         a_coeff = &(unbound_con->var_coeff[var_pos]);
-                        // 注意：insert_var_change_value_sat 是为 _operation_vars 设计的，不是为 _operation_vars_pair 设计的
-                        // 这里应该使用专门为 _operation_vars_pair 设计的函数，或者修改逻辑
-                        // 暂时注释掉这个调用，因为它会导致 _operation_cons_pos 大小不匹配
-                        // insert_var_change_value_sat(var_pos, a_coeff, delta, unbound_con, symflag, best_value, true);
+                        insert_var_change_value_sat(var_pos, a_coeff, delta, unbound_con, symflag, best_value, true);
                     }
                 }
                 op_num = _operation_vars.size() - op_num;
                 if (op_num == 0 && symflag == 1)
                 // if (symflag == 1)
                 {
-                    Float best_shift;
-                    if (_vars[var_pos].is_int) 
-                    {
-                        best_shift = round(best_value) - _cur_assignment[var_pos];
-                    }
-                    else
-                    {
-                        best_shift = best_value - _cur_assignment[var_pos];
-                    }
-                    if (check_var_shift(var_pos, best_shift, true))
+                    if (_vars[var_pos].is_int) best_value = round(best_value);
+                    best_value = best_value - _cur_assignment[var_pos];
+                    if (check_var_shift(var_pos, best_value, true))
                     {
                         _operation_vars.push_back(var_pos);
-                        _operation_value.push_back(best_shift);
-                        _operation_cons_pos.push_back(-1);  // 没有约束关联
+                        _operation_value.push_back(best_value);
                     }
                 }
                 if (symflag == 0)
@@ -1251,7 +1020,6 @@ namespace solver
                         {
                             _operation_vars.push_back(var_pos);
                             _operation_value.push_back(best_bound);
-                            _operation_cons_pos.push_back(-1);  // 没有约束关联
                         }
                     }
                     if (best_value == INT32_MIN && _vars[var_pos].has_lower)
@@ -1261,7 +1029,6 @@ namespace solver
                         {
                             _operation_vars.push_back(var_pos);
                             _operation_value.push_back(best_bound);
-                            _operation_cons_pos.push_back(-1);  // 没有约束关联
                         }
                     }
                 }
@@ -1315,8 +1082,6 @@ namespace solver
             // if (_operation_value_sub[i] != 1 && _operation_value_sub[i] != -1) cout <<"??????" <<endl;
             _operation_vars.push_back(_operation_vars_sub[i]);
             _operation_value.push_back(_operation_value_sub[i]);
-            // 注意：_operation_cons_pos 已经在 insert_var_change_value_sat_bin 中添加了对应的条目
-            // 这里不需要再添加，因为 _operation_vars_sub 对应的 _operation_cons_pos 条目已经存在
         }
         // int var_pos;
         // Float change_value_2, score;
@@ -1354,9 +1119,6 @@ namespace solver
         // initialize_mix();
         sta_cons();
         restart_by_new_solution();//test
-        
-        // 启用约束级别的tabu机制
-        // set_constraint_tabu_enabled(true);
         // int var_pos;
         int bin_var_pos;
         Float bin_score, score;

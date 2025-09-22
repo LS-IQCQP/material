@@ -87,6 +87,7 @@ namespace solver
         }
         // _best_object_value /= 10000000;
         if (print_flag) cout << " best steps = " << _best_steps << endl;
+        if (print_type == 1) return; 
         if (_best_object_value == INT32_MAX) 
         {
             cout << " best obj min= " ;
@@ -258,7 +259,7 @@ namespace solver
                 cons_pos = cur_cons_pos;
             }
         }
-        if (_constraint_tabu_enabled && cons_pos != -1)
+        if (cons_pos != -1)
         {
             _constraints[cons_pos].tabu_step = _steps + rand() % 10 + 3;
         }
@@ -1330,7 +1331,7 @@ namespace solver
                 cons_pos = cur_cons_pos;
             }
         }
-        if (_constraint_tabu_enabled && cons_pos != -1)
+        if (cons_pos != -1)
         {
             _constraints[cons_pos].tabu_step = _steps + rand() % 10 + 3;
         }
@@ -1393,6 +1394,7 @@ namespace solver
                 }
             }
         }
+        if (print_type == 1) return; 
         if (_best_object_value == INT32_MAX) cout << INT32_MAX << endl;
         else
         {

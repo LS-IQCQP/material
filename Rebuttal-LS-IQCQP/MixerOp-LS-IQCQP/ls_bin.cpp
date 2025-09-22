@@ -35,57 +35,60 @@ namespace solver
 #ifdef DEBUG
             cout << " unsat num: "  << _unsat_constraints.size()  << endl;
 #endif
-            if (_steps % 1000 == 0 && (TimeElapsed() > _cut_off)) 
+            if ((TimeElapsed() > _cut_off)) 
             {
                 if (print_flag) cout << "steps = " << _steps << endl;
                 break;
             }
             if (is_cur_feasible)
             {
-                insert_operation_sat_bin_with_equal();
-                select_best_operation_bin(var_pos, change_value, score);
-                select_best_operation_bin_with_pair(var_pos_equal_1, var_pos_equal_2, change_value_not_used, score_equal);
-                max_score = std::max(score, score_equal);
-                if (max_score > 0) 
-                {
-#ifdef DEBUG
-                    cout << " sat greedy walk " << endl;
-#endif
-                    if (score > 0 || max_score == score)
-                        execute_critical_move(var_pos, change_value);
-                    else 
-                    {
-                        Float change_value_1 = (_cur_assignment[var_pos_equal_1] == 0) ? 1 : -1;
-                        Float change_value_2 = (_cur_assignment[var_pos_equal_2] == 0) ? 1 : -1;
-                        execute_critical_move(var_pos_equal_1, change_value_1);
-                        execute_critical_move(var_pos_equal_2, change_value_2);
-                    }
-                }
-                else 
-                {
-                    update_weight();
-                    random_walk_sat_bin_with_equal();
-                }
+                gradient_bin_new_sat_step();
+//                 insert_operation_sat_bin_with_equal();
+//                 select_best_operation_bin(var_pos, change_value, score);
+//                 select_best_operation_bin_with_pair(var_pos_equal_1, var_pos_equal_2, change_value_not_used, score_equal);
+//                 max_score = std::max(score, score_equal);
+//                 if (max_score > 0) 
+//                 {
+// #ifdef DEBUG
+//                     cout << " sat greedy walk " << endl;
+// #endif
+//                     if (score > 0 || max_score == score)
+//                         execute_critical_move(var_pos, change_value);
+//                     else 
+//                     {
+//                         Float change_value_1 = (_cur_assignment[var_pos_equal_1] == 0) ? 1 : -1;
+//                         Float change_value_2 = (_cur_assignment[var_pos_equal_2] == 0) ? 1 : -1;
+//                         execute_critical_move(var_pos_equal_1, change_value_1);
+//                         execute_critical_move(var_pos_equal_2, change_value_2);
+//                     }
+//                 }
+//                 else 
+//                 {
+//                     update_weight();
+//                     random_walk_sat_bin_with_equal();
+//                 }
             }
             else 
             {
-                insert_operation_unsat_bin();
-                select_best_operation_bin(var_pos, change_value, score);
-                if (score > 0) 
-                {
-#ifdef DEBUG
-                cout << " unsat greedy walk " << endl;
-#endif
-                    execute_critical_move(var_pos, change_value);
-                }
-                else 
-                {
-                    update_weight();
-                    random_walk_unsat_bin();
-                }
+                gradient_bin_new_unsat_step();
+//                 insert_operation_unsat_bin();
+//                 select_best_operation_bin(var_pos, change_value, score);
+//                 if (score > 0) 
+//                 {
+// #ifdef DEBUG
+//                 cout << " unsat greedy walk " << endl;
+// #endif
+//                     execute_critical_move(var_pos, change_value);
+//                 }
+//                 else 
+//                 {
+//                     update_weight();
+//                     random_walk_unsat_bin();
+//                 }
             }
         }
         // _best_object_value /= 10000000;
+        if (is_primal) return;
         if (print_flag) cout << " best steps = " << _best_steps << endl;
         if (_best_object_value == INT32_MAX) 
         {
@@ -120,7 +123,6 @@ namespace solver
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
         _operation_vars_pair.clear();
-        _operation_cons_pos.clear();
         int no_operation_var = rand() % _vars.size();
         unordered_set<int> rand_obj_idx;
         bool is_bool;
@@ -205,14 +207,6 @@ namespace solver
         score = INT32_MIN;
         int cnt;
         int op_size = _operation_vars_pair.size();
-        // 确保数组大小一致
-        // if (op_size != _operation_cons_pos.size())
-        // {
-        //     cout << "Error: _operation_vars_pair.size() = " << op_size 
-        //          << " != _operation_cons_pos.size() = " << _operation_cons_pos.size() << endl;
-        //     cout << "Debug: This is in select_best_operation_bin_with_pair function" << endl;
-        //     return;
-        // }
         bool is_bms;
         if (op_size <= bms) 
         {
@@ -226,7 +220,7 @@ namespace solver
         }
         int cur_var, cur_var_2;
         Float cur_shift, cur_score;
-        int rand_index, cons_pos = -1, cur_cons_pos;
+        int rand_index;
         for (int i = 0; i < cnt; i++) 
         {
             if (is_bms) 
@@ -234,15 +228,11 @@ namespace solver
                 rand_index = rand() % (op_size - i);
                 cur_var = _operation_vars_pair[rand_index].var_1;
                 cur_var_2 = _operation_vars_pair[rand_index].var_2;
-                cur_cons_pos = _operation_vars_pair[rand_index].cons_pos;
                 _operation_vars_pair[rand_index] = _operation_vars_pair[op_size - i - 1];
-                // _operation_cons_pos[rand_index] = _operation_cons_pos[op_size - i - 1];
-                // _operation_value_sub[rand_index] = _operation_value_sub[op_size - i - 1];
             } 
             else {
                 cur_var = _operation_vars_pair[i].var_1;
                 cur_var_2 = _operation_vars_pair[i].var_2;
-                cur_cons_pos = _operation_vars_pair[i].cons_pos;
             }
             if (is_cur_feasible)
                 cur_score = calculate_score_compensate_cons(cur_var, cur_var_2);
@@ -255,12 +245,7 @@ namespace solver
                 score = cur_score;
                 var_pos = cur_var;
                 var_pos_2 = cur_var_2;
-                cons_pos = cur_cons_pos;
             }
-        }
-        if (_constraint_tabu_enabled && cons_pos != -1)
-        {
-            _constraints[cons_pos].tabu_step = _steps + rand() % 10 + 3;
         }
     }
 
@@ -280,36 +265,8 @@ namespace solver
         Float cur_value;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         _operation_vars_pair.clear();
         _obj_vars_in_unbounded_constraint.clear();
-        
-        // std::priority_queue<std::pair<int, int>> global_constraint_queue; // (weight, constraint_pos)
-        // std::unordered_set<int> top_constraints; // 存储权重最高的10个约束位置
-        
-        // // 收集所有约束的权重
-        // for (int var_pos : _vars_in_obj)
-        // {
-        //     obj_var = & (_vars[var_pos]);
-        //     for (int con_pos: obj_var->constraints)
-        //     {
-        //         if (_constraints[con_pos].tabu_step > _steps) continue;
-        //         int weight = (_constraints[con_pos]).weight;
-        //         global_constraint_queue.push(std::make_pair(weight, con_pos));
-        //     }
-        // }
-        
-        // // 取出权重最高的10个约束
-        // int constraint_count = 0;
-        // while (!global_constraint_queue.empty() && constraint_count < top_cons_num)
-        // {
-        //     int con_pos = global_constraint_queue.top().second;
-        //     global_constraint_queue.pop();
-        //     top_constraints.insert(con_pos);
-        //     constraint_count++; 
-        // }
-
-
         for (int var_pos : _vars_in_obj)
         {
             op_num = _operation_vars_sub.size();
@@ -332,9 +289,6 @@ namespace solver
             //这里有问题，如果是两个变量的话不一定根据一个变量去continue？，好像是避免重复了，好像也不是，因为有一些共作用的。一个布尔变量的是怎么变的？
             for (int con_pos: obj_var->constraints)
             {
-                if (_constraints[con_pos].tabu_step > _steps) continue;
-                // if (top_constraints.find(con_pos) == top_constraints.end())
-                //     continue;
                 unbound_con = & (_constraints[con_pos]);
                 a_coeff = &(unbound_con->var_coeff[var_pos]);
                 if (unbound_con->is_equal) 
@@ -381,11 +335,10 @@ namespace solver
                     //insert ，暂时没有加入tabu这个元素
                     // if (check_var_shift_bool(var_idx, change_value, rand_flag))
                     // if ((sub_change_value > 0 && _steps <= _vars[coeff.first].last_pos_step + 1) || (sub_change_value < 0 && _steps <= _vars[coeff.first].last_neg_step + 1)) return false; 
-                    pair_vars cur(var_idx, coeff.first, pcon->index);
+                    pair_vars cur(var_idx, coeff.first);
                     if (true)
                     {
                         _operation_vars_pair.push_back(cur);
-                        // _operation_cons_pos.push_back(pcon->index);
                         is_have = true;
                     }
                 }
@@ -637,7 +590,6 @@ namespace solver
         Float delta;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         unordered_set<int> rand_unsat_idx;
         for (int i = 0; i < rand_num; i++) 
         {
@@ -700,7 +652,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
             }
             return;
@@ -713,7 +664,6 @@ namespace solver
             {
                 _operation_vars_sub.push_back(var_idx);
                 _operation_value_sub.push_back(change_value);
-                _operation_cons_pos.push_back(pcon->index);
             }
         }
     }
@@ -726,44 +676,15 @@ namespace solver
         Float delta;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
-        // 创建按权重从大到小排序的优先队列
-        // std::priority_queue<std::pair<int, int>> unsat_queue; // (weight, constraint_pos)
-        
-        // // 将所有不可满足约束按权重排序
-        // for (int unsat_pos : _unsat_constraints)
-        // {
-        //     if (_constraints[unsat_pos].tabu_step > _steps) continue;
-        //     int weight = (_constraints[unsat_pos]).weight;
-        //     unsat_queue.push(std::make_pair(weight, unsat_pos));
-        // }
-        
-        // // 按权重从大到小处理约束，最多处理10个
-        // int processed_count = 0;
-        // while (!unsat_queue.empty() && processed_count < top_cons_num)
-        // {
-        //     int unsat_pos = unsat_queue.top().second;
-        //     unsat_queue.pop();
-            
-        //     unsat_con = & (_constraints[unsat_pos]);
-        //     // delta = unsat_con->bound - unsat_con->value; //想一下这个对不对
-        //     for (auto var_coeff : unsat_con->var_coeff)
-        //     {
-        //         var_idx = var_coeff.first;
-        //         a_coeff = & (var_coeff.second);
-        //         // insert_var_change_value_bin(var_idx, a_coeff, delta, unsat_con);
-        //         insert_var_change_value_bin(var_idx, a_coeff, 0, unsat_con, false);
-        //     }
-        //     processed_count++;
-        // }
         for (int unsat_pos : _unsat_constraints)
         {
-            if (_constraints[unsat_pos].tabu_step > _steps) continue;
             unsat_con = & (_constraints[unsat_pos]);
+            // delta = unsat_con->bound - unsat_con->value; //想一下这个对不对
             for (auto var_coeff : unsat_con->var_coeff)
             {
                 var_idx = var_coeff.first;
                 a_coeff = & (var_coeff.second);
+                // insert_var_change_value_bin(var_idx, a_coeff, delta, unsat_con);
                 insert_var_change_value_bin(var_idx, a_coeff, 0, unsat_con, false);
             }
         }
@@ -805,7 +726,6 @@ namespace solver
         int symflag = 0; // 1 means a > 0 ,-1 means a < 0; 
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         int no_operation_var = rand() % _vars.size();
         unordered_set<int> rand_obj_idx;
         bool is_bool;
@@ -906,7 +826,6 @@ namespace solver
             {
                 _operation_vars_sub.push_back(var_idx);
                 _operation_value_sub.push_back(change_value);
-                _operation_cons_pos.push_back(pcon->index);
             }
             return true;
         }
@@ -921,7 +840,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 return true;
             }
@@ -931,7 +849,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 return true;
             }
@@ -948,7 +865,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 return true;
             }
@@ -958,7 +874,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 return true;
             }
@@ -983,35 +898,7 @@ namespace solver
         Float cur_value;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         _obj_vars_in_unbounded_constraint.clear();
-        
-        // 预先找出权重最高的10个约束
-        // std::priority_queue<std::pair<int, int>> global_constraint_queue; // (weight, constraint_pos)
-        // std::unordered_set<int> top_constraints; // 存储权重最高的10个约束位置
-        
-        // // 收集所有约束的权重
-        // for (int var_pos : _vars_in_obj)
-        // {
-        //     obj_var = & (_vars[var_pos]);
-        //     for (int con_pos: obj_var->constraints)
-        //     {
-        //         if (_constraints[con_pos].tabu_step > _steps) continue;
-        //         int weight = (_constraints[con_pos]).weight;
-        //         global_constraint_queue.push(std::make_pair(weight, con_pos));
-        //     }
-        // }
-        
-        // // 取出权重最高的10个约束
-        // int constraint_count = 0;
-        // while (!global_constraint_queue.empty() && constraint_count < top_cons_num)
-        // {
-        //     int con_pos = global_constraint_queue.top().second;
-        //     global_constraint_queue.pop();
-        //     top_constraints.insert(con_pos);
-        //     constraint_count++;
-        // }
-        
         for (int var_pos : _vars_in_obj)
         {
             op_num = _operation_vars_sub.size();
@@ -1032,15 +919,8 @@ namespace solver
             if (linear_coeff_value < 0 && cur_value == 1) continue;
             // 这里再好好想想，是不是要维护可满足性质呢？
             //TODO:采样目标函数，要不太大了，目标函数感觉要用CY学姐的
-        
-            // 只处理预先选出的权重最高的10个约束
             for (int con_pos: obj_var->constraints)
             {
-                if (_constraints[con_pos].tabu_step > _steps) continue;
-                // 只处理在top_constraints中的约束
-                // if (top_constraints.find(con_pos) == top_constraints.end())
-                //     continue;
-                    
                 /*
                 1.不一定非得选unbound
                 2.等式没有unbound，怎么插入操作呢此时？还得分一次二次的
@@ -1092,7 +972,6 @@ namespace solver
         Float cur_value;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         _obj_vars_in_unbounded_constraint.clear();
         for (int var_pos : _vars_in_obj)
         {
@@ -1118,7 +997,6 @@ namespace solver
             {
                 _operation_vars_sub.push_back(var_pos);
                 _operation_value_sub.push_back(change_value);
-                _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
             }
         }
         int var_pos;
@@ -1145,7 +1023,6 @@ namespace solver
             Float value_1, value_2;
             _operation_vars_sub.clear();
             _operation_value_sub.clear();
-            _operation_cons_pos.clear();
             for (int rand_times = 0; rand_times < 40; rand_times++)
             {
                 mono_pos = rand() % _object_monoials.size();
@@ -1163,7 +1040,6 @@ namespace solver
                             {
                                 _operation_vars_sub.push_back(var_pos);
                                 _operation_value_sub.push_back(change_value);
-                                _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                             }
                         }
                     }
@@ -1180,7 +1056,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(mono->m_vars[1]);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                             else
@@ -1190,7 +1065,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(mono->m_vars[0]);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                         }
@@ -1208,7 +1082,6 @@ namespace solver
                             {
                                 _operation_vars_sub.push_back(var_pos);
                                 _operation_value_sub.push_back(change_value);
-                                _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                             }
                         }
                     }
@@ -1225,7 +1098,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(mono->m_vars[0]);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                             else
@@ -1235,7 +1107,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(mono->m_vars[1]);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                         }
@@ -1249,7 +1120,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(var_pos);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                         }
@@ -1276,13 +1146,6 @@ namespace solver
         score = INT32_MIN;
         int cnt;
         int op_size = _operation_vars_sub.size();
-        // 确保数组大小一致
-        if (op_size != _operation_cons_pos.size())
-        {
-            cout << "error" << endl;
-            exit(0);
-            return;
-        }
         bool is_bms;
         if (op_size <= bms) 
         {
@@ -1296,7 +1159,7 @@ namespace solver
         }
         int cur_var;
         Float cur_shift, cur_score;
-        int rand_index, cons_pos = -1, cur_cons_pos;
+        int rand_index;
         for (int i = 0; i < cnt; i++) 
         {
             if (is_bms) 
@@ -1304,15 +1167,12 @@ namespace solver
                 rand_index = rand() % (op_size - i);
                 cur_var = _operation_vars_sub[rand_index];
                 cur_shift = _operation_value_sub[rand_index];
-                cur_cons_pos = _operation_cons_pos[rand_index];
                 _operation_vars_sub[rand_index] = _operation_vars_sub[op_size - i - 1];
                 _operation_value_sub[rand_index] = _operation_value_sub[op_size - i - 1];
-                _operation_cons_pos[rand_index] = _operation_cons_pos[op_size - i - 1];
             } 
             else {
                 cur_var = _operation_vars_sub[i];
                 cur_shift = _operation_value_sub[i];
-                cur_cons_pos = _operation_cons_pos[i];
             }
             if (is_cur_feasible)
                 cur_score = calculate_score_bin_cy(cur_var, cur_shift);
@@ -1327,12 +1187,7 @@ namespace solver
                 score = cur_score;
                 var_pos = cur_var;
                 change_value = cur_shift;
-                cons_pos = cur_cons_pos;
             }
-        }
-        if (_constraint_tabu_enabled && cons_pos != -1)
-        {
-            _constraints[cons_pos].tabu_step = _steps + rand() % 10 + 3;
         }
     }
 
@@ -1350,49 +1205,52 @@ namespace solver
 #ifdef DEBUG
             cout << " unsat num: "  << _unsat_constraints.size()  << endl;
 #endif
-            if (_steps % 1000 == 0 && (TimeElapsed() > _cut_off)) break;
+            if ((TimeElapsed() > _cut_off)) break;
             if (is_cur_feasible)
             {
-                // lift_var = lift_move();
-                // if (lift_var != -1) 
-                // {
-                //     // cout << "lift move" << endl;
-                //     execute_critical_move(lift_var, 1 - _cur_assignment[lift_var]);
-                //     continue;
-                // }
-                insert_operation_sat_bin();
-                select_best_operation_bin(var_pos, change_value, score);
-                if (score > 0) 
-                {
-#ifdef DEBUG
-                    cout << " sat greedy walk " << endl;
-#endif
-                    execute_critical_move(var_pos, change_value);
-                }
-                else 
-                {
-                    update_weight();
-                    random_walk_sat_bin();
-                }
+                gradient_bin_sat_step();
+//                 // lift_var = lift_move();
+//                 // if (lift_var != -1) 
+//                 // {
+//                 //     // cout << "lift move" << endl;
+//                 //     execute_critical_move(lift_var, 1 - _cur_assignment[lift_var]);
+//                 //     continue;
+//                 // }
+//                 insert_operation_sat_bin();
+//                 select_best_operation_bin(var_pos, change_value, score);
+//                 if (score > 0) 
+//                 {
+// #ifdef DEBUG
+//                     cout << " sat greedy walk " << endl;
+// #endif
+//                     execute_critical_move(var_pos, change_value);
+//                 }
+//                 else 
+//                 {
+//                     update_weight();
+//                     random_walk_sat_bin();
+//                 }
             }
             else 
             {
-                insert_operation_unsat_bin();
-                select_best_operation_bin(var_pos, change_value, score);
-                if (score > 0) 
-                {
-#ifdef DEBUG
-                cout << " unsat greedy walk " << endl;
-#endif
-                    execute_critical_move(var_pos, change_value);
-                }
-                else 
-                {
-                    update_weight();
-                    random_walk_unsat_bin();
-                }
+                gradient_bin_new_unsat_step();
+//                 insert_operation_unsat_bin();
+//                 select_best_operation_bin(var_pos, change_value, score);
+//                 if (score > 0) 
+//                 {
+// #ifdef DEBUG
+//                 cout << " unsat greedy walk " << endl;
+// #endif
+//                     execute_critical_move(var_pos, change_value);
+//                 }
+//                 else 
+//                 {
+//                     update_weight();
+//                     random_walk_unsat_bin();
+//                 }
             }
         }
+        if (is_primal) return;
         if (_best_object_value == INT32_MAX) cout << INT32_MAX << endl;
         else
         {

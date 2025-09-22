@@ -28,7 +28,8 @@
 #include <iomanip> 
 #include <sstream>
 #include <cfloat>
-#include <queue>
+#include <random>
+#include <limits>
 #define __UNREACHABLE__
 #define __ASSERT__
 // #define __TRACE__
@@ -51,12 +52,12 @@
 // using bool_vector = std::vector<bool>;
 // using int_vector = std::vector<int>;
 // using double_vector = std::vector<double>;
-// using long_double_vector = std::vector<long double>;
+// using long_double_vector = std::vector<double>;
 // using int_table = std::unordered_set<int>;
 // using int_table_vector = std::vector<int_table>;
 // using bool_pair = std::pair<bool, bool>;
 // using int_pair = std::pair<int, int>;
-// using long_double_pair = std::pair<long double, long double>;
+// using long_double_pair = std::pair<double, double>;
 
 using std::cout;
 using std::endl;
@@ -67,18 +68,18 @@ using std::unordered_map;
 using std::unordered_set;
 using std::cin;
 using Int   = int_fast32_t;
-using Float = long double;
-#define SIZE 3
+using Float = double;
+#define QUEUE_SIZE 3
 class CircularQueue {
 private:
-    Float queue[SIZE];  // 队列数组，固定大小为3
+    Float queue[QUEUE_SIZE];  // 队列数组，固定大小为3
     int index;     // 记录当前队列中第一个元素的位置
 
 public:
     // 构造函数，初始化队列为空
     CircularQueue() : index(0) 
     {
-        for (int i = 0; i < SIZE; i++) {
+        for (int i = 0; i < QUEUE_SIZE; i++) {
             queue[i] = -FLT_MAX;  
         }
     }
@@ -87,21 +88,21 @@ public:
     void update(Float new_element) 
     {
         queue[index] = new_element;  // 将新的元素放到当前的位置
-        index = (index + 1) % SIZE;     // 更新索引，保持循环
+        index = (index + 1) % QUEUE_SIZE;     // 更新索引，保持循环
     }
 
     // 返回当前队列中的元素
     void get_elements() 
     {
-        for (int i = 0; i < SIZE; i++) {
+        for (int i = 0; i < QUEUE_SIZE; i++) {
             cout << queue[i] << " ";  // 输出队列中的元素
         }
         cout << endl;
     }
     bool contains(Float element) {
-        const float EPSILON = 1e-6;
+        const float EPSILON = 1e-6 - 1e-13;
         int sum = 0;
-        for (int i = 0; i < SIZE; i++) {
+        for (int i = 0; i < QUEUE_SIZE; i++) {
             if (fabs(queue[i] - element) < EPSILON) {
                 sum++;  // 如果找到该元素，则返回true
             }

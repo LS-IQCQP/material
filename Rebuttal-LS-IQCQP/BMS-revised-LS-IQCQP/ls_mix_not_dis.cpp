@@ -236,7 +236,6 @@ namespace solver
                         {
                             _operation_vars.push_back(var_idx);
                             _operation_value.push_back(roots[0]);
-                            _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
                         }
                     }
                     // if (_vars[var_idx].has_upper)
@@ -256,7 +255,6 @@ namespace solver
                         {
                             _operation_vars.push_back(var_idx);
                             _operation_value.push_back(roots[1]);
-                            _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
                         }
                     }
 
@@ -272,7 +270,6 @@ namespace solver
                             {
                                 _operation_vars.push_back(var_idx);
                                 _operation_value.push_back(roots[1]);
-                                _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
                             }
                         }
                         else if (roots[1] >= symvalue && roots[0] <= symvalue)
@@ -283,7 +280,6 @@ namespace solver
                             {
                                 _operation_vars.push_back(var_idx);
                                 _operation_value.push_back(change_value);
-                                _operation_cons_pos.push_back(pcon->index);
                             }
                         }
                         else 
@@ -293,7 +289,6 @@ namespace solver
                             {
                                 _operation_vars.push_back(var_idx);
                                 _operation_value.push_back(roots[0]);
-                                _operation_cons_pos.push_back(pcon->index);
                             }
                         }
                     }
@@ -307,7 +302,6 @@ namespace solver
                             {
                                 _operation_vars.push_back(var_idx);
                                 _operation_value.push_back(change_value);
-                                _operation_cons_pos.push_back(pcon->index);
                             }
                         }
                         else
@@ -319,7 +313,6 @@ namespace solver
                                 {
                                     _operation_vars.push_back(var_idx);
                                     _operation_value.push_back(roots[0]);
-                                    _operation_cons_pos.push_back(pcon->index);
                                 }
                             }
                             if (fabs(roots[1] - symvalue) < fabs(_cur_assignment[var_idx] - symvalue))
@@ -329,7 +322,6 @@ namespace solver
                                 {
                                     _operation_vars.push_back(var_idx);
                                     _operation_value.push_back(roots[1]);
-                                    _operation_cons_pos.push_back(pcon->index);  // 记录约束来源
                                 }
                             }
                         }
@@ -352,7 +344,6 @@ namespace solver
                             {
                                 _operation_vars.push_back(var_idx);
                                 _operation_value.push_back(change_value);
-                                _operation_cons_pos.push_back(pcon->index);
                             }
                         }
                         else 
@@ -364,7 +355,6 @@ namespace solver
                                 {
                                     _operation_vars.push_back(var_idx);
                                     _operation_value.push_back(roots[1]);
-                                    _operation_cons_pos.push_back(pcon->index);
                                 }
                             }
                         }
@@ -378,7 +368,6 @@ namespace solver
                             {
                                 _operation_vars.push_back(var_idx);
                                 _operation_value.push_back(change_value);
-                                _operation_cons_pos.push_back(pcon->index);
                             }
                         }
                         else 
@@ -390,7 +379,6 @@ namespace solver
                                 {
                                     _operation_vars.push_back(var_idx);
                                     _operation_value.push_back(roots[0]);
-                                    _operation_cons_pos.push_back(pcon->index);
                                 }
                             }
                         }
@@ -409,7 +397,6 @@ namespace solver
                         {
                             _operation_vars.push_back(var_idx);
                             _operation_value.push_back(change_value);
-                            _operation_cons_pos.push_back(pcon->index);
                         }
                     }
                 }
@@ -469,7 +456,6 @@ namespace solver
                     {
                         _operation_vars.push_back(var_idx);
                         _operation_value.push_back(change_value);
-                        _operation_cons_pos.push_back(pcon->index);
                     }
                 }
                 else 
@@ -492,7 +478,6 @@ namespace solver
                                 {
                                     _operation_vars.push_back(var_idx);
                                     _operation_value.push_back(change_value);
-                                    _operation_cons_pos.push_back(pcon->index);
                                 }
                             }
                             else 
@@ -505,7 +490,6 @@ namespace solver
                                     {
                                         _operation_vars.push_back(var_idx);
                                         _operation_value.push_back(change_value);
-                                        _operation_cons_pos.push_back(pcon->index);
                                     }
                                 }
                             }
@@ -537,7 +521,6 @@ namespace solver
                                 {
                                     _operation_vars.push_back(var_idx);
                                     _operation_value.push_back(change_value);
-                                    _operation_cons_pos.push_back(pcon->index);
                                 }
                             }
                         }
@@ -554,7 +537,6 @@ namespace solver
                                 {
                                     _operation_vars.push_back(var_idx);
                                     _operation_value.push_back(change_value);
-                                    _operation_cons_pos.push_back(pcon->index);
                                 }
                             }
                             else 
@@ -566,7 +548,6 @@ namespace solver
                                     {
                                         _operation_vars.push_back(var_idx);
                                         _operation_value.push_back(change_value);
-                                        _operation_cons_pos.push_back(pcon->index);
                                     }
                                 }
                             }
@@ -597,7 +578,6 @@ namespace solver
                                 {
                                     _operation_vars.push_back(var_idx);
                                     _operation_value.push_back(change_value);
-                                    _operation_cons_pos.push_back(pcon->index);
                                 }
                             }
                         }
@@ -690,13 +670,11 @@ namespace solver
                 {
                     _operation_vars.push_back(var_idx);
                     _operation_value.push_back(roots[0]);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 if (check_var_shift(var_idx, roots[1], rand_flag))
                 {
                     _operation_vars.push_back(var_idx);
                     _operation_value.push_back(roots[1]);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 // if (!addsub_case && check_var_shift(var_idx, root_avg, rand_flag))
                 // {
@@ -734,7 +712,6 @@ namespace solver
                 {
                     _operation_vars.push_back(var_idx);
                     _operation_value.push_back(roots[0]);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
             } 
             else 
@@ -776,7 +753,6 @@ namespace solver
                 {
                     _operation_vars.push_back(var_idx);
                     _operation_value.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                     // if (change_value==0)
                     //     cout <<"here "<< change_value;
                 }
@@ -796,7 +772,6 @@ namespace solver
                     {
                         _operation_vars.push_back(var_idx);
                         _operation_value.push_back(average_change_value);
-                        _operation_cons_pos.push_back(pcon->index);
                     }
                 }
             }
@@ -1132,7 +1107,6 @@ namespace solver
         _operation_value_sub.clear();
         _operation_vars.clear();
         _operation_value.clear();
-        _operation_cons_pos.clear();  // 清空约束位置映射
         // int real_rand_num = 20;
         for (int i = 0; i < rand_num; i++) 
         {
@@ -1159,7 +1133,6 @@ namespace solver
             // if (_operation_value_sub[i] != 1 && _operation_value_sub[i] != -1) cout <<"??????" <<endl;
             _operation_vars.push_back(_operation_vars_sub[i]);
             _operation_value.push_back(_operation_value_sub[i]);
-            _operation_cons_pos.push_back(-1);  // 对于 _operation_vars_sub 中的操作，使用 -1 表示没有约束关联
         }
         // for (int i = 0; i < _operation_vars.size(); i++)
         // {
@@ -1183,7 +1156,6 @@ namespace solver
         _operation_value.clear();
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();  // 清空约束位置映射
         for (int unsat_pos : _unsat_constraints)
         {
             unsat_con = & (_constraints[unsat_pos]);
@@ -1205,7 +1177,6 @@ namespace solver
             // if (_operation_value_sub[i] != 1 && _operation_value_sub[i] != -1) cout <<"??????" <<endl;
             _operation_vars.push_back(_operation_vars_sub[i]);
             _operation_value.push_back(_operation_value_sub[i]);
-            _operation_cons_pos.push_back(-1);  // 对于 _operation_vars_sub 中的操作，使用 -1 表示没有约束关联
         }
         // for (int i = 0; i < _operation_vars.size(); i++)
         // {
@@ -1233,7 +1204,6 @@ namespace solver
         _operation_value.clear();
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();  // 清空约束位置映射
         _obj_vars_in_unbounded_constraint.clear();//TODO:改成两个
         _obj_bin_vars_in_unbounded_constraint.clear();//TODO:改成两个
         for (int var_pos : _vars_in_obj)
@@ -1316,7 +1286,6 @@ namespace solver
                     {
                         _operation_vars.push_back(var_pos);
                         _operation_value.push_back(best_value);
-                        _operation_cons_pos.push_back(-1);  // 没有约束关联
                     }
                     _obj_vars_in_unbounded_constraint.insert(var_pos);
                 }
@@ -1327,7 +1296,6 @@ namespace solver
             // if (_operation_value_sub[i] != 1 && _operation_value_sub[i] != -1) cout <<"??????" <<endl;
             _operation_vars.push_back(_operation_vars_sub[i]);
             _operation_value.push_back(_operation_value_sub[i]);
-            _operation_cons_pos.push_back(-1);  // 对于 _operation_vars_sub 中的操作，使用 -1 表示没有约束关联
         }
         // for (int i = 0; i < _operation_vars.size(); i++)
         // {
@@ -1356,7 +1324,6 @@ namespace solver
         _operation_value.clear();
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();  // 清空约束位置映射
         // cout << _obj_vars_in_unbounded_constraint.size() << endl;
         // cout << _obj_bin_vars_in_unbounded_constraint.size() << endl;
         if (_obj_vars_in_unbounded_constraint.size() != 0)
@@ -1428,7 +1395,6 @@ namespace solver
                     {
                         _operation_vars.push_back(var_pos);
                         _operation_value.push_back(best_value);
-                        _operation_cons_pos.push_back(-1);  // 没有约束关联
                     }
                 }
             }
@@ -1479,7 +1445,6 @@ namespace solver
             // if (_operation_value_sub[i] != 1 && _operation_value_sub[i] != -1) cout <<"??????" <<endl;
             _operation_vars.push_back(_operation_vars_sub[i]);
             _operation_value.push_back(_operation_value_sub[i]);
-            _operation_cons_pos.push_back(-1);  // 对于 _operation_vars_sub 中的操作，使用 -1 表示没有约束关联
         }
         //  for (int i = 0; i < _operation_vars.size(); i++)
         // {
@@ -1498,21 +1463,6 @@ namespace solver
         score = INT32_MIN;
         int cnt;
         int op_size = _operation_vars.size();
-        // 仅在开启tabu时检查并使用_cons_pos
-        if (_constraint_tabu_enabled)
-        {
-            // if (op_size != _operation_cons_pos.size())
-            // {
-            //     // 只在最后输出一次错误信息
-            //     static bool error_reported = false;
-            //     if (!error_reported) {
-            //         cout << "Error: _operation_vars.size() = " << op_size 
-            //              << " != _operation_cons_pos.size() = " << _operation_cons_pos.size() << endl;
-            //         error_reported = true;
-            //     }
-            //     return;
-            // }
-        }
         bool is_bms;
         // bms = 200;
         if (op_size <= bms) 
@@ -1527,7 +1477,7 @@ namespace solver
         }
         int cur_var;
         Float cur_shift, cur_score;
-        int rand_index, cons_pos = -1, cur_cons_pos = -1;
+        int rand_index;
         for (int i = 0; i < cnt; i++) 
         {
             if (is_bms) 
@@ -1535,15 +1485,12 @@ namespace solver
                 rand_index = rand() % (op_size - i);
                 cur_var = _operation_vars[rand_index];
                 cur_shift = _operation_value[rand_index];
-                if (_constraint_tabu_enabled) cur_cons_pos = _operation_cons_pos[rand_index];
                 _operation_vars[rand_index] = _operation_vars[op_size - i - 1];
                 _operation_value[rand_index] = _operation_value[op_size - i - 1];
-                if (_constraint_tabu_enabled) _operation_cons_pos[rand_index] = _operation_cons_pos[op_size - i - 1];
             } 
             else {
                 cur_var = _operation_vars[i];
                 cur_shift = _operation_value[i];
-                if (_constraint_tabu_enabled) cur_cons_pos = _operation_cons_pos[i];
             }
             if (is_cur_feasible)//打破faclay80,35的记录，cruoil02的记录，以及
             // if (true) //打破ring的两个记录 ,e-12是最后一个，e的-9是第二个
@@ -1563,13 +1510,8 @@ namespace solver
                 score = cur_score;
                 var_pos = cur_var;
                 change_value = cur_shift;
-                cons_pos = cur_cons_pos;
                 // cout << change_value <<" ";
             }
-        }
-        if (cons_pos != -1 && _constraint_tabu_enabled)
-        {
-            _constraints[cons_pos].tabu_step = _steps + rand() % 10 + 3;
         }
     }
 
@@ -2042,12 +1984,6 @@ namespace solver
                     _cur_assignment.push_back(_init_solution_map[i]);
                 }
                 else if (_vars[i].is_constant) _cur_assignment.push_back(_vars[i].constant);
-                if (_vars[i].has_lower && _vars[i].has_upper)
-                {
-                    Float average = (_vars[i].lower + _vars[i].upper) / 2;
-                    if (_vars[i].is_int) average = round(average);
-                    _cur_assignment.push_back(average);
-                }
                 else if (_vars[i].has_lower)
                 {
                     // if (_vars[i].is_int) _cur_assignment.push_back(ceil(_vars[i].lower));

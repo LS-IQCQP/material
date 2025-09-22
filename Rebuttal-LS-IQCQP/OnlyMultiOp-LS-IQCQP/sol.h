@@ -1,6 +1,7 @@
 #pragma once
 
 #include "util.h"
+#include <functional>
 // #define DEBUG
 // #define OUTPUT_PROCESS
 namespace solver 
@@ -120,7 +121,6 @@ namespace solver
         bool                            is_average = true;
         bool                            is_linear;
         Float                           sum;
-        int                             tabu_step = -10;
         // vector<int>                     p_vars;
         // vector<int>                     p_quadratic_coeff; //constant  初始化为0
         // vector<vector<int>>             p_linear_coeff; //var index
@@ -135,14 +135,12 @@ namespace solver
         int var_2;
         Float value_1;
         Float value_2;
-        int cons_pos;
         pair_vars(int var_idx_1, int var_idx_2)
         {
             var_1 = var_idx_1;
             var_2 = var_idx_2;
             value_1 = INT32_MIN;
             value_2 = INT32_MIN;
-            cons_pos = -1;  // 默认值
         }
         pair_vars(int var_idx_1, int var_idx_2, Float change_value_1, Float change_value_2)
         {
@@ -150,15 +148,6 @@ namespace solver
             var_2 = var_idx_2;
             value_1 = change_value_1;
             value_2 = change_value_2;
-            cons_pos = -1;  // 默认值
-        }
-        pair_vars(int var_idx_1, int var_idx_2, int cons_pos_o)
-        {
-            var_1 = var_idx_1;
-            var_2 = var_idx_2;
-            value_1 = INT32_MIN;
-            value_2 = INT32_MIN;
-            cons_pos = cons_pos_o;
         }
         bool operator==(const pair_vars& other) const 
         {
@@ -171,9 +160,7 @@ namespace solver
 
     class qp_solver {
     public:
-        int                                             tabu_switch;
-        bool                                            no_cons_int_flag = false;
-        int                                             top_cons_num = 10;  
+        int                                             is_primal = 0;
         const Float                                     eb = 1e-6;                
         // const Float                                     eb = 0;          //ali eb = 0 
         //for mix search
@@ -224,11 +211,7 @@ namespace solver
         vector<Float>                                   _operation_value;
         vector<int>                                     _operation_vars_sub;// bin vars
         vector<Float>                                   _operation_value_sub; //bin value
-        vector<int>                                     _operation_cons_pos;
         vector<pair_vars>                               _operation_vars_pair;//bin pair vars;
-        
-        // 约束级别的tabu机制
-        bool                                            _constraint_tabu_enabled = false;  // tabu开关
         vector<int>                                     _rand_op_vars;
         vector<Float>                                   _rand_op_values;
         int                                             bms = 100;// 100 200
@@ -327,11 +310,6 @@ namespace solver
         void                                            insert_operation_balance();
         void                                            random_walk_balance();
         void                                            local_search_mix_balance();
-        
-        // 约束tabu相关函数
-        void                                            set_constraint_tabu_enabled(bool enabled);
-        bool                                            is_constraint_tabu(int constraint_idx);
-        
         //new compensate operators
         bool                                            compensate_move();
         void                                            insert_var_change_value_comp(int var_pos, Float change_value, int var_idx, all_coeff * a_coeff, Float delta, polynomial_constraint * pcon, bool rand_flag);
@@ -397,8 +375,53 @@ namespace solver
         void                                            add_bool_bound();                 
         void                                            sta_cons();
         // propagation
-        class propagation;
-        friend class propagation;
-        propagation*                                    _propagationer;
+        // class propagation;
+        // friend class propagation;
+        // propagation*                                    _propagationer;
+
+        // gradient operation
+        struct gradient_operation {
+            int constraint_index;
+            vector<int> variable_indices;
+            vector<Float> variable_deltas;
+            Float score = INT32_MIN;
+        };
+        
+        // gradient unsat step
+        vector<gradient_operation>                      gradient_pool;
+        void                                            gradient_bin_new_unsat_step();
+        void                                            gradient_bin_new_sat_step();
+        void                                            gradient_bin_sat_step();
+        void                                            gradient_no_cons_step();
+        void                                            gradient_mix_sat_step();
+        void                                            gradient_mix_unsat_step();
+
+        void                                            gradient_build_unsat_pool();
+        void                                            gradient_build_sat_pool();
+        bool                                            feasible_t_interval(const unordered_map<int, Float>& grad_g, Float& t_min, Float& t_max);
+        void                                            compute_constraint_gradient(const polynomial_constraint& con, unordered_map<int, Float>& out_grad);
+        void                                            compute_objective_gradient(unordered_map<int, Float>& out_grad);
+        void                                            construct_constraint_parametric_polynomial(const polynomial_constraint& con, const unordered_map<int, Float>& grad_g, Float& A, Float& B, Float& p0);
+        void                                            construct_objective_parametric_polynomial(const unordered_map<int, Float>& grad_g, Float& A, Float& B, Float& q0);
+        void                                            add_gradient_operation(const unordered_map<int, Float>& grad_g, int constraint_index, Float t);
+
+        Float                                           eval_objective_with_deltas(const unordered_map<int, Float>& idx_to_new_value);
+        Float                                           eval_constraint_with_deltas(const polynomial_constraint& con, const unordered_map<int, Float>& idx_to_new_value);
+
+        bool                                            gradient_select_best_op_bms(int & best_index, Float & best_score, const std::function<Float(const vector<int>&, const vector<Float>&)>& score_fn);
+        Float                                           compute_multivar_move_score_bin(const vector<int>& var_indices, const vector<Float>& var_deltas);
+        Float                                           compute_multivar_move_score_mix(const vector<int>& var_indices, const vector<Float>& var_deltas);
+        Float                                           calculate_score_multi_bin_cy(const unordered_map<int, Float>& new_vals);
+        Float                                           calculate_score_multi_bin(const unordered_map<int, Float>& new_vals);
+        Float                                           calculate_score_multi_mix_cy(const unordered_map<int, Float>& new_vals);
+        Float                                           calculate_score_multi_mix(const unordered_map<int, Float>& new_vals);
+
+        void                                            gradient_execute_op_index(int op_index, const std::function<void(int, Float)>& exec_fn);
+        void                                            gradient_random_walk_unsat_bin();
+        void                                            gradient_random_walk_sat_bin_with_equal();
+        void                                            gradient_random_walk_sat_bin();
+        void                                            gradient_random_walk_no_cons();
+        void                                            gradient_random_walk_balance();
+        void                                            gradient_random_walk_unsat_mix_not_dis();
     };
 }

@@ -142,7 +142,6 @@ namespace solver
             var_2 = var_idx_2;
             value_1 = INT32_MIN;
             value_2 = INT32_MIN;
-            cons_pos = -1;  // 默认值
         }
         pair_vars(int var_idx_1, int var_idx_2, Float change_value_1, Float change_value_2)
         {
@@ -150,7 +149,6 @@ namespace solver
             var_2 = var_idx_2;
             value_1 = change_value_1;
             value_2 = change_value_2;
-            cons_pos = -1;  // 默认值
         }
         pair_vars(int var_idx_1, int var_idx_2, int cons_pos_o)
         {
@@ -171,8 +169,7 @@ namespace solver
 
     class qp_solver {
     public:
-        int                                             tabu_switch;
-        bool                                            no_cons_int_flag = false;
+        int                                             print_type = 0;
         int                                             top_cons_num = 10;  
         const Float                                     eb = 1e-6;                
         // const Float                                     eb = 0;          //ali eb = 0 
@@ -226,9 +223,6 @@ namespace solver
         vector<Float>                                   _operation_value_sub; //bin value
         vector<int>                                     _operation_cons_pos;
         vector<pair_vars>                               _operation_vars_pair;//bin pair vars;
-        
-        // 约束级别的tabu机制
-        bool                                            _constraint_tabu_enabled = false;  // tabu开关
         vector<int>                                     _rand_op_vars;
         vector<Float>                                   _rand_op_values;
         int                                             bms = 100;// 100 200
@@ -327,11 +321,6 @@ namespace solver
         void                                            insert_operation_balance();
         void                                            random_walk_balance();
         void                                            local_search_mix_balance();
-        
-        // 约束tabu相关函数
-        void                                            set_constraint_tabu_enabled(bool enabled);
-        bool                                            is_constraint_tabu(int constraint_idx);
-        
         //new compensate operators
         bool                                            compensate_move();
         void                                            insert_var_change_value_comp(int var_pos, Float change_value, int var_idx, all_coeff * a_coeff, Float delta, polynomial_constraint * pcon, bool rand_flag);

@@ -9,9 +9,9 @@ namespace solver
         {
             obj_var = & (_vars[var_pos]);
             obj_var->obj_constant_coeff *= 10000000;
-            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff.size(); linear_pos++)
+            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff->size(); linear_pos++)
             {
-                obj_var->obj_linear_constant_coeff[linear_pos] *= 10000000;
+                obj_var->obj_linear_constant_coeff->at(linear_pos) *= 10000000;
             }
         }
         for (int mono_pos = 0; mono_pos < _object_monoials.size(); mono_pos++)
@@ -22,7 +22,10 @@ namespace solver
 
     void qp_solver::local_search_bin_new()
     {
-        std::srand(8);
+        if (portfolio_mode == 0)
+            rds.seed(8);
+        else
+            rds.seed(portfolio_mode);
         initialize();
         // exit(0);
         // precess_small_ins();
@@ -35,7 +38,11 @@ namespace solver
 #ifdef DEBUG
             cout << " unsat num: "  << _unsat_constraints.size()  << endl;
 #endif
-            if (_steps % 1000 == 0 && (TimeElapsed() > _cut_off)) 
+            // if (parallel_tid ==0) 
+            // {
+            //     cout << " unsat num: "  << _unsat_constraints.size()  << endl;
+            // }
+            if ((TimeElapsed() > _cut_off) || terminate) 
             {
                 if (print_flag) cout << "steps = " << _steps << endl;
                 break;
@@ -86,23 +93,26 @@ namespace solver
             }
         }
         // _best_object_value /= 10000000;
-        if (print_flag) cout << " best steps = " << _best_steps << endl;
-        if (_best_object_value == INT32_MAX) 
+        if (output_mode == 0)
         {
-            cout << " best obj min= " ;
-            cout << INT32_MAX << endl;
+            if (print_flag) cout << " best steps = " << _best_steps << endl;
+            if (_best_object_value == INT64_MAX) 
+            {
+                cout << " best obj min= " ;
+                cout << INT64_MAX << endl;
+            }
+            else
+            {
+                if (is_minimize)
+                    cout << std::fixed << " best obj min= " ;
+                else 
+                    cout << std::fixed << " best obj max= " ;
+                if (is_minimize) cout << _best_object_value + _obj_constant;
+                else cout << -_best_object_value + _obj_constant;
+                // cout << endl << " solution : " <<endl;
+                // print_best_solution();
+            } 
         }
-        else
-        {
-            if (is_minimize)
-                cout << std::fixed << " best obj min= " ;
-            else 
-                cout << std::fixed << " best obj max= " ;
-            if (is_minimize) cout << _best_object_value + _obj_constant;
-            else cout << -_best_object_value + _obj_constant;
-            // cout << endl << " solution : " <<endl;
-            // print_best_solution();
-        } 
     }
 
     void qp_solver::random_walk_sat_bin_with_equal()
@@ -120,8 +130,7 @@ namespace solver
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
         _operation_vars_pair.clear();
-        _operation_cons_pos.clear();
-        int no_operation_var = rand() % _vars.size();
+        int no_operation_var = rds() % _vars.size();
         unordered_set<int> rand_obj_idx;
         bool is_bool;
         int op_num;
@@ -136,7 +145,7 @@ namespace solver
         for (int i = 0; i < rand_num_obj; i++) 
         {
             unordered_set<int>::iterator it(_obj_vars_in_unbounded_constraint.begin());
-            std::advance(it, rand() % _obj_vars_in_unbounded_constraint.size());
+            std::advance(it, rds() % _obj_vars_in_unbounded_constraint.size());
             rand_obj_idx.insert(*it);
             if (i == 0) no_operation_var = *it; 
         }
@@ -147,20 +156,20 @@ namespace solver
             change_value = (cur_value == 0) ? 1 : -1;
             linear_coeff_value = obj_var->obj_constant_coeff;
             op_num = _operation_vars_sub.size();
-            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff.size(); linear_pos++)
+            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff->size(); linear_pos++)
             {
-                li_var_idx = obj_var->obj_linear_coeff[linear_pos];
-                li_var_coeff = obj_var->obj_linear_constant_coeff[linear_pos];
+                li_var_idx = obj_var->obj_linear_coeff->at(linear_pos);
+                li_var_coeff = obj_var->obj_linear_constant_coeff->at(linear_pos);
                 linear_coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
             }
             linear_coeff_value += obj_var->obj_quadratic_coeff;
             if (linear_coeff_value == 0) continue;
             if (linear_coeff_value > 0 && cur_value == 0) continue;
             if (linear_coeff_value < 0 && cur_value == 1) continue;
-            for (int con_pos: obj_var->constraints)
+            for (int con_pos: *obj_var->constraints)
             {
                 unbound_con = & (_constraints[con_pos]);//考虑有没有目标函数里的变量
-                a_coeff = &(unbound_con->var_coeff[var_pos]);
+                a_coeff = &(unbound_con->var_coeff->at(var_pos));
                 if (unbound_con->is_equal) 
                     insert_var_change_value_sat_bin_equal(var_pos, a_coeff, 0, unbound_con, linear_coeff_value, false);  
                 else if (a_coeff->obj_quadratic_coeff != 0 || a_coeff->obj_linear_coeff.size() != 0 || _unbounded_constraints.find(con_pos) != _unbounded_constraints.end())
@@ -205,14 +214,6 @@ namespace solver
         score = INT32_MIN;
         int cnt;
         int op_size = _operation_vars_pair.size();
-        // 确保数组大小一致
-        // if (op_size != _operation_cons_pos.size())
-        // {
-        //     cout << "Error: _operation_vars_pair.size() = " << op_size 
-        //          << " != _operation_cons_pos.size() = " << _operation_cons_pos.size() << endl;
-        //     cout << "Debug: This is in select_best_operation_bin_with_pair function" << endl;
-        //     return;
-        // }
         bool is_bms;
         if (op_size <= bms) 
         {
@@ -226,23 +227,19 @@ namespace solver
         }
         int cur_var, cur_var_2;
         Float cur_shift, cur_score;
-        int rand_index, cons_pos = -1, cur_cons_pos;
+        int rand_index;
         for (int i = 0; i < cnt; i++) 
         {
             if (is_bms) 
             {
-                rand_index = rand() % (op_size - i);
+                rand_index = rds() % (op_size - i);
                 cur_var = _operation_vars_pair[rand_index].var_1;
                 cur_var_2 = _operation_vars_pair[rand_index].var_2;
-                cur_cons_pos = _operation_vars_pair[rand_index].cons_pos;
                 _operation_vars_pair[rand_index] = _operation_vars_pair[op_size - i - 1];
-                // _operation_cons_pos[rand_index] = _operation_cons_pos[op_size - i - 1];
-                // _operation_value_sub[rand_index] = _operation_value_sub[op_size - i - 1];
             } 
             else {
                 cur_var = _operation_vars_pair[i].var_1;
                 cur_var_2 = _operation_vars_pair[i].var_2;
-                cur_cons_pos = _operation_vars_pair[i].cons_pos;
             }
             if (is_cur_feasible)
                 cur_score = calculate_score_compensate_cons(cur_var, cur_var_2);
@@ -255,12 +252,7 @@ namespace solver
                 score = cur_score;
                 var_pos = cur_var;
                 var_pos_2 = cur_var_2;
-                cons_pos = cur_cons_pos;
             }
-        }
-        if (_constraint_tabu_enabled && cons_pos != -1)
-        {
-            _constraints[cons_pos].tabu_step = _steps + rand() % 10 + 3;
         }
     }
 
@@ -280,36 +272,8 @@ namespace solver
         Float cur_value;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         _operation_vars_pair.clear();
         _obj_vars_in_unbounded_constraint.clear();
-        
-        // std::priority_queue<std::pair<int, int>> global_constraint_queue; // (weight, constraint_pos)
-        // std::unordered_set<int> top_constraints; // 存储权重最高的10个约束位置
-        
-        // // 收集所有约束的权重
-        // for (int var_pos : _vars_in_obj)
-        // {
-        //     obj_var = & (_vars[var_pos]);
-        //     for (int con_pos: obj_var->constraints)
-        //     {
-        //         if (_constraints[con_pos].tabu_step > _steps) continue;
-        //         int weight = (_constraints[con_pos]).weight;
-        //         global_constraint_queue.push(std::make_pair(weight, con_pos));
-        //     }
-        // }
-        
-        // // 取出权重最高的10个约束
-        // int constraint_count = 0;
-        // while (!global_constraint_queue.empty() && constraint_count < top_cons_num)
-        // {
-        //     int con_pos = global_constraint_queue.top().second;
-        //     global_constraint_queue.pop();
-        //     top_constraints.insert(con_pos);
-        //     constraint_count++; 
-        // }
-
-
         for (int var_pos : _vars_in_obj)
         {
             op_num = _operation_vars_sub.size();
@@ -318,10 +282,10 @@ namespace solver
             change_value = (cur_value == 0) ? 1 : -1;
             //execute the best value of objvar
             linear_coeff_value = obj_var->obj_constant_coeff;
-            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff.size(); linear_pos++)
+            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff->size(); linear_pos++)
             {
-                li_var_idx = obj_var->obj_linear_coeff[linear_pos];
-                li_var_coeff = obj_var->obj_linear_constant_coeff[linear_pos];
+                li_var_idx = obj_var->obj_linear_coeff->at(linear_pos);
+                li_var_coeff = obj_var->obj_linear_constant_coeff->at(linear_pos);
                 linear_coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
             }
             linear_coeff_value += obj_var->obj_quadratic_coeff;
@@ -330,13 +294,10 @@ namespace solver
             if (linear_coeff_value < 0 && cur_value == 1) continue;
             if ((change_value > 0 && _steps <= _vars[var_pos].last_pos_step) || (change_value < 0 && _steps <= _vars[var_pos].last_neg_step)) continue;
             //这里有问题，如果是两个变量的话不一定根据一个变量去continue？，好像是避免重复了，好像也不是，因为有一些共作用的。一个布尔变量的是怎么变的？
-            for (int con_pos: obj_var->constraints)
+            for (int con_pos: *obj_var->constraints)
             {
-                if (_constraints[con_pos].tabu_step > _steps) continue;
-                // if (top_constraints.find(con_pos) == top_constraints.end())
-                //     continue;
                 unbound_con = & (_constraints[con_pos]);
-                a_coeff = &(unbound_con->var_coeff[var_pos]);
+                a_coeff = &(unbound_con->var_coeff->at(var_pos));
                 if (unbound_con->is_equal) 
                 {
                     if (insert_var_change_value_sat_bin_equal(var_pos, a_coeff, 0, unbound_con, linear_coeff_value, false));
@@ -361,13 +322,13 @@ namespace solver
         //这个函数写好，想好在哪里用
         //两个变量都在目标函数的情况，一个在一个不在
         //进这个函数的条件是目标变量一定能让目标函数下降
-        all_coeff * obj_var_coeff = &(pcon->var_coeff[var_idx]);
+        all_coeff * obj_var_coeff = &(pcon->var_coeff->at(var_idx));
         Float change_value = (_cur_assignment[var_idx] == 0) ? 1 : -1;
         Float delta = obj_var_coeff->obj_constant_coeff * change_value;
         Float sub_change_value, sub_delta;
         bool is_have = false;
         // if ((change_value > 0 && _steps <= _vars[var_idx].last_pos_step) || (change_value < 0 && _steps <= _vars[var_idx].last_neg_step)) return false;
-        for (auto coeff : pcon->var_coeff)
+        for (auto coeff : *pcon->var_coeff)
         {
             //没有更特化的处理，比如直接找a+b+c=1的或者全部都是0的过滤的操作，给这样的约束预先打上tag，方便这里处理！！
             if (coeff.first == var_idx) continue;
@@ -381,11 +342,10 @@ namespace solver
                     //insert ，暂时没有加入tabu这个元素
                     // if (check_var_shift_bool(var_idx, change_value, rand_flag))
                     // if ((sub_change_value > 0 && _steps <= _vars[coeff.first].last_pos_step + 1) || (sub_change_value < 0 && _steps <= _vars[coeff.first].last_neg_step + 1)) return false; 
-                    pair_vars cur(var_idx, coeff.first, pcon->index);
+                    pair_vars cur(var_idx, coeff.first);
                     if (true)
                     {
                         _operation_vars_pair.push_back(cur);
-                        // _operation_cons_pos.push_back(pcon->index);
                         is_have = true;
                     }
                 }
@@ -398,8 +358,8 @@ namespace solver
     {
         var * var_1 = &(_vars[var_idx_1]);
         var * var_2 = &(_vars[var_idx_2]);
-        all_coeff * coeff_1 = &(pcon->var_coeff[var_idx_1]); 
-        all_coeff * coeff_2 = &(pcon->var_coeff[var_idx_2]);
+        all_coeff * coeff_1 = &(pcon->var_coeff->at(var_idx_1)); 
+        all_coeff * coeff_2 = &(pcon->var_coeff->at(var_idx_2));
         Float change_value_1 = (_cur_assignment[var_idx_1] == 0) ? 1 : -1;
         Float change_value_2 = (_cur_assignment[var_idx_2] == 0) ? 1 : -1;
         int li_var_idx;
@@ -447,10 +407,10 @@ namespace solver
         var_1 = & (_vars[var_idx_1]);
         var_2 = & (_vars[var_idx_2]);
         unordered_set<int> both_cons;
-        for (int con_size : var_1->constraints)
+        for (int con_size : *var_1->constraints)
         {
             pcon = & (_constraints[con_size]);
-            if (pcon->var_coeff.find(var_idx_2) == pcon->var_coeff.end())
+            if (pcon->var_coeff->find(var_idx_2) == pcon->var_coeff->end())
             {
                 var_delta = pro_var_delta(var_1, pcon, var_idx_1, _cur_assignment[var_idx_1]);
                 con_delta = pcon->value + var_delta;
@@ -467,7 +427,7 @@ namespace solver
                 //calculate both score;
             }
         }
-        for (int con_size : var_2->constraints)
+        for (int con_size : *var_2->constraints)
         {
             pcon = & (_constraints[con_size]);
             if (both_cons.find(con_size) == both_cons.end())
@@ -505,20 +465,20 @@ namespace solver
         coeff_value += var_1->obj_quadratic_coeff;
         coeff_value_2 += var_2->obj_constant_coeff;
         coeff_value_2 += var_2->obj_quadratic_coeff;
-        for (int linear_pos = 0; linear_pos < var_1->obj_linear_coeff.size(); linear_pos++)
+        for (int linear_pos = 0; linear_pos < var_1->obj_linear_coeff->size(); linear_pos++)
         {
-            li_var_idx = var_1->obj_linear_coeff[linear_pos];
-            li_var_coeff = var_1->obj_linear_constant_coeff[linear_pos];
+            li_var_idx = var_1->obj_linear_coeff->at(linear_pos);
+            li_var_coeff = var_1->obj_linear_constant_coeff->at(linear_pos);
             if (li_var_idx != var_idx_2)
                 coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
             else
                 both_coeff = li_var_coeff;
         }
         coeff_value = change_value_1 * coeff_value;
-        for (int linear_pos = 0; linear_pos < var_2->obj_linear_coeff.size(); linear_pos++)
+        for (int linear_pos = 0; linear_pos < var_2->obj_linear_coeff->size(); linear_pos++)
         {
-            li_var_idx = var_2->obj_linear_coeff[linear_pos];
-            li_var_coeff = var_2->obj_linear_constant_coeff[linear_pos];
+            li_var_idx = var_2->obj_linear_coeff->at(linear_pos);
+            li_var_coeff = var_2->obj_linear_constant_coeff->at(linear_pos);
             if (li_var_idx != var_idx_1)
                 coeff_value_2 += _cur_assignment[li_var_idx] * li_var_coeff;
             else if (both_coeff != li_var_coeff)
@@ -583,20 +543,20 @@ namespace solver
         cur_value = _cur_assignment[var_idx];
         //execute the best value of objvar
         linear_coeff_value = obj_var->obj_constant_coeff;
-        for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff.size(); linear_pos++)
+        for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff->size(); linear_pos++)
         {
-            li_var_idx = obj_var->obj_linear_coeff[linear_pos];
-            li_var_coeff = obj_var->obj_linear_constant_coeff[linear_pos];
+            li_var_idx = obj_var->obj_linear_coeff->at(linear_pos);
+            li_var_coeff = obj_var->obj_linear_constant_coeff->at(linear_pos);
             linear_coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
         }
         linear_coeff_value += obj_var->obj_quadratic_coeff;
         if (linear_coeff_value == 0) return ;
         if (linear_coeff_value > 0 && cur_value == 0) return ;
         if (linear_coeff_value < 0 && cur_value == 1) return ;
-        for (int con_pos: obj_var->constraints)
+        for (int con_pos: *obj_var->constraints)
         {
             unbound_con = & (_constraints[con_pos]);//考虑有没有目标函数里的变量
-            a_coeff = &(unbound_con->var_coeff[var_idx]);
+            a_coeff = &(unbound_con->var_coeff->at(var_idx));
             if (!judge_bin_var_feasible(var_idx, a_coeff, unbound_con)) return ;
         }
         // score = (- change_value) * linear_coeff_value;
@@ -614,7 +574,7 @@ namespace solver
         var * bin_var;
         Float norm;
         bin_var = & (_vars[var_pos]);
-        for (int con_size : bin_var->constraints)
+        for (int con_size : *bin_var->constraints)
         {
             pcon = & (_constraints[con_size]);
             var_delta = pro_var_delta(bin_var, pcon, var_pos, _cur_assignment[var_pos]);
@@ -637,19 +597,18 @@ namespace solver
         Float delta;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         unordered_set<int> rand_unsat_idx;
         for (int i = 0; i < rand_num; i++) 
         {
             unordered_set<int>::iterator it(_unsat_constraints.begin());
-            std::advance(it, rand() % _unsat_constraints.size());
+            std::advance(it, rds() % _unsat_constraints.size());
             rand_unsat_idx.insert(*it);
         }
         for (int unsat_pos : rand_unsat_idx)
         {
             unsat_con = & (_constraints[unsat_pos]);
             // delta = unsat_con->bound - unsat_con->value;
-            for (auto var_coeff : unsat_con->var_coeff)
+            for (auto var_coeff : *unsat_con->var_coeff)
             {
                 var_idx = var_coeff.first;
                 a_coeff = & (var_coeff.second);
@@ -700,7 +659,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
             }
             return;
@@ -713,7 +671,6 @@ namespace solver
             {
                 _operation_vars_sub.push_back(var_idx);
                 _operation_value_sub.push_back(change_value);
-                _operation_cons_pos.push_back(pcon->index);
             }
         }
     }
@@ -726,44 +683,15 @@ namespace solver
         Float delta;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
-        // 创建按权重从大到小排序的优先队列
-        // std::priority_queue<std::pair<int, int>> unsat_queue; // (weight, constraint_pos)
-        
-        // // 将所有不可满足约束按权重排序
-        // for (int unsat_pos : _unsat_constraints)
-        // {
-        //     if (_constraints[unsat_pos].tabu_step > _steps) continue;
-        //     int weight = (_constraints[unsat_pos]).weight;
-        //     unsat_queue.push(std::make_pair(weight, unsat_pos));
-        // }
-        
-        // // 按权重从大到小处理约束，最多处理10个
-        // int processed_count = 0;
-        // while (!unsat_queue.empty() && processed_count < top_cons_num)
-        // {
-        //     int unsat_pos = unsat_queue.top().second;
-        //     unsat_queue.pop();
-            
-        //     unsat_con = & (_constraints[unsat_pos]);
-        //     // delta = unsat_con->bound - unsat_con->value; //想一下这个对不对
-        //     for (auto var_coeff : unsat_con->var_coeff)
-        //     {
-        //         var_idx = var_coeff.first;
-        //         a_coeff = & (var_coeff.second);
-        //         // insert_var_change_value_bin(var_idx, a_coeff, delta, unsat_con);
-        //         insert_var_change_value_bin(var_idx, a_coeff, 0, unsat_con, false);
-        //     }
-        //     processed_count++;
-        // }
         for (int unsat_pos : _unsat_constraints)
         {
-            if (_constraints[unsat_pos].tabu_step > _steps) continue;
             unsat_con = & (_constraints[unsat_pos]);
-            for (auto var_coeff : unsat_con->var_coeff)
+            // delta = unsat_con->bound - unsat_con->value; //想一下这个对不对
+            for (auto var_coeff : *unsat_con->var_coeff)
             {
                 var_idx = var_coeff.first;
                 a_coeff = & (var_coeff.second);
+                // insert_var_change_value_bin(var_idx, a_coeff, delta, unsat_con);
                 insert_var_change_value_bin(var_idx, a_coeff, 0, unsat_con, false);
             }
         }
@@ -778,7 +706,7 @@ namespace solver
         Float state;
         var * bin_var;
         bin_var = & (_vars[var_pos]);
-        for (int con_size : bin_var->constraints)
+        for (int con_size : *bin_var->constraints)
         {
             pcon = & (_constraints[con_size]);
             var_delta = pro_var_delta(bin_var, pcon, var_pos, _cur_assignment[var_pos]);
@@ -805,8 +733,7 @@ namespace solver
         int symflag = 0; // 1 means a > 0 ,-1 means a < 0; 
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
-        int no_operation_var = rand() % _vars.size();
+        int no_operation_var = rds() % _vars.size();
         unordered_set<int> rand_obj_idx;
         bool is_bool;
         int op_num;
@@ -821,7 +748,7 @@ namespace solver
         for (int i = 0; i < rand_num_obj; i++) 
         {
             unordered_set<int>::iterator it(_obj_vars_in_unbounded_constraint.begin());
-            std::advance(it, rand() % _obj_vars_in_unbounded_constraint.size());
+            std::advance(it, rds() % _obj_vars_in_unbounded_constraint.size());
             rand_obj_idx.insert(*it);
             if (i == 0) no_operation_var = *it; 
         }
@@ -832,20 +759,20 @@ namespace solver
             change_value = (cur_value == 0) ? 1 : -1;
             linear_coeff_value = obj_var->obj_constant_coeff;
             op_num = _operation_vars_sub.size();
-            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff.size(); linear_pos++)
+            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff->size(); linear_pos++)
             {
-                li_var_idx = obj_var->obj_linear_coeff[linear_pos];
-                li_var_coeff = obj_var->obj_linear_constant_coeff[linear_pos];
+                li_var_idx = obj_var->obj_linear_coeff->at(linear_pos);
+                li_var_coeff = obj_var->obj_linear_constant_coeff->at(linear_pos);
                 linear_coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
             }
             linear_coeff_value += obj_var->obj_quadratic_coeff;
             if (linear_coeff_value == 0) continue;
             if (linear_coeff_value > 0 && cur_value == 0) continue;
             if (linear_coeff_value < 0 && cur_value == 1) continue;
-            for (int con_pos: obj_var->constraints)
+            for (int con_pos: *obj_var->constraints)
             {
                 unbound_con = & (_constraints[con_pos]);//考虑有没有目标函数里的变量
-                a_coeff = &(unbound_con->var_coeff[var_pos]);
+                a_coeff = &(unbound_con->var_coeff->at(var_pos));
                 if (a_coeff->obj_quadratic_coeff != 0 || a_coeff->obj_linear_coeff.size() != 0 || _unbounded_constraints.find(con_pos) != _unbounded_constraints.end())
                 {
                     insert_var_change_value_sat_bin(var_pos, a_coeff, 0, unbound_con, linear_coeff_value, true);       
@@ -906,7 +833,6 @@ namespace solver
             {
                 _operation_vars_sub.push_back(var_idx);
                 _operation_value_sub.push_back(change_value);
-                _operation_cons_pos.push_back(pcon->index);
             }
             return true;
         }
@@ -921,7 +847,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 return true;
             }
@@ -931,7 +856,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 return true;
             }
@@ -948,7 +872,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 return true;
             }
@@ -958,7 +881,6 @@ namespace solver
                 {
                     _operation_vars_sub.push_back(var_idx);
                     _operation_value_sub.push_back(change_value);
-                    _operation_cons_pos.push_back(pcon->index);
                 }
                 return true;
             }
@@ -983,35 +905,7 @@ namespace solver
         Float cur_value;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         _obj_vars_in_unbounded_constraint.clear();
-        
-        // 预先找出权重最高的10个约束
-        // std::priority_queue<std::pair<int, int>> global_constraint_queue; // (weight, constraint_pos)
-        // std::unordered_set<int> top_constraints; // 存储权重最高的10个约束位置
-        
-        // // 收集所有约束的权重
-        // for (int var_pos : _vars_in_obj)
-        // {
-        //     obj_var = & (_vars[var_pos]);
-        //     for (int con_pos: obj_var->constraints)
-        //     {
-        //         if (_constraints[con_pos].tabu_step > _steps) continue;
-        //         int weight = (_constraints[con_pos]).weight;
-        //         global_constraint_queue.push(std::make_pair(weight, con_pos));
-        //     }
-        // }
-        
-        // // 取出权重最高的10个约束
-        // int constraint_count = 0;
-        // while (!global_constraint_queue.empty() && constraint_count < top_cons_num)
-        // {
-        //     int con_pos = global_constraint_queue.top().second;
-        //     global_constraint_queue.pop();
-        //     top_constraints.insert(con_pos);
-        //     constraint_count++;
-        // }
-        
         for (int var_pos : _vars_in_obj)
         {
             op_num = _operation_vars_sub.size();
@@ -1020,10 +914,10 @@ namespace solver
             change_value = (cur_value == 0) ? 1 : -1;
             //execute the best value of objvar
             linear_coeff_value = obj_var->obj_constant_coeff;
-            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff.size(); linear_pos++)
+            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff->size(); linear_pos++)
             {
-                li_var_idx = obj_var->obj_linear_coeff[linear_pos];
-                li_var_coeff = obj_var->obj_linear_constant_coeff[linear_pos];
+                li_var_idx = obj_var->obj_linear_coeff->at(linear_pos);
+                li_var_coeff = obj_var->obj_linear_constant_coeff->at(linear_pos);
                 linear_coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
             }
             linear_coeff_value += obj_var->obj_quadratic_coeff;
@@ -1032,15 +926,8 @@ namespace solver
             if (linear_coeff_value < 0 && cur_value == 1) continue;
             // 这里再好好想想，是不是要维护可满足性质呢？
             //TODO:采样目标函数，要不太大了，目标函数感觉要用CY学姐的
-        
-            // 只处理预先选出的权重最高的10个约束
-            for (int con_pos: obj_var->constraints)
+            for (int con_pos: *obj_var->constraints)
             {
-                if (_constraints[con_pos].tabu_step > _steps) continue;
-                // 只处理在top_constraints中的约束
-                // if (top_constraints.find(con_pos) == top_constraints.end())
-                //     continue;
-                    
                 /*
                 1.不一定非得选unbound
                 2.等式没有unbound，怎么插入操作呢此时？还得分一次二次的
@@ -1050,7 +937,7 @@ namespace solver
                 6. _obj_vars_in_unbounded_constraint.insert(var_pos); random walk里也要改
                 */
                 unbound_con = & (_constraints[con_pos]);
-                a_coeff = &(unbound_con->var_coeff[var_pos]);
+                a_coeff = &(unbound_con->var_coeff->at(var_pos));
                 if (a_coeff->obj_quadratic_coeff != 0 || a_coeff->obj_linear_coeff.size() != 0 || _unbounded_constraints.find(con_pos) != _unbounded_constraints.end())
                 {
                     // unbound_con = & (_constraints[con_pos]);//考虑有没有目标函数里的变量
@@ -1092,7 +979,6 @@ namespace solver
         Float cur_value;
         _operation_vars_sub.clear();
         _operation_value_sub.clear();
-        _operation_cons_pos.clear();
         _obj_vars_in_unbounded_constraint.clear();
         for (int var_pos : _vars_in_obj)
         {
@@ -1102,10 +988,10 @@ namespace solver
             change_value = (cur_value == 0) ? 1 : -1;
             //execute the best value of objvar
             linear_coeff_value = obj_var->obj_constant_coeff;
-            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff.size(); linear_pos++)
+            for (int linear_pos = 0; linear_pos < obj_var->obj_linear_coeff->size(); linear_pos++)
             {
-                li_var_idx = obj_var->obj_linear_coeff[linear_pos];
-                li_var_coeff = obj_var->obj_linear_constant_coeff[linear_pos];
+                li_var_idx = obj_var->obj_linear_coeff->at(linear_pos);
+                li_var_coeff = obj_var->obj_linear_constant_coeff->at(linear_pos);
                 linear_coeff_value += _cur_assignment[li_var_idx] * li_var_coeff;
             }
             linear_coeff_value += obj_var->obj_quadratic_coeff;
@@ -1118,7 +1004,6 @@ namespace solver
             {
                 _operation_vars_sub.push_back(var_pos);
                 _operation_value_sub.push_back(change_value);
-                _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
             }
         }
         int var_pos;
@@ -1145,10 +1030,9 @@ namespace solver
             Float value_1, value_2;
             _operation_vars_sub.clear();
             _operation_value_sub.clear();
-            _operation_cons_pos.clear();
             for (int rand_times = 0; rand_times < 40; rand_times++)
             {
-                mono_pos = rand() % _object_monoials.size();
+                mono_pos = rds() % _object_monoials.size();
                 mono = & (_object_monoials[mono_pos]);
                 obj_delta = pro_mono(*mono);
                 if (mono->coeff > 0) 
@@ -1163,7 +1047,6 @@ namespace solver
                             {
                                 _operation_vars_sub.push_back(var_pos);
                                 _operation_value_sub.push_back(change_value);
-                                _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                             }
                         }
                     }
@@ -1180,7 +1063,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(mono->m_vars[1]);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                             else
@@ -1190,7 +1072,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(mono->m_vars[0]);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                         }
@@ -1208,7 +1089,6 @@ namespace solver
                             {
                                 _operation_vars_sub.push_back(var_pos);
                                 _operation_value_sub.push_back(change_value);
-                                _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                             }
                         }
                     }
@@ -1225,7 +1105,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(mono->m_vars[0]);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                             else
@@ -1235,7 +1114,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(mono->m_vars[1]);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                         }
@@ -1249,7 +1127,6 @@ namespace solver
                                 {
                                     _operation_vars_sub.push_back(var_pos);
                                     _operation_value_sub.push_back(change_value);
-                                    _operation_cons_pos.push_back(-1); // 没有约束关联，使用-1
                                 }
                             }
                         }
@@ -1262,7 +1139,7 @@ namespace solver
             if (0) execute_critical_move(var_pos, change_value_2);
             else 
             {
-                int rand_idx = rand() % _vars.size();
+                int rand_idx = rds() % _vars.size();
                 // if (_cur_assignment[rand_idx] == 0) execute_critical_move_no_cons(rand_idx,1);
                 // else execute_critical_move_no_cons(rand_idx,-1);
                 Float value = (_cur_assignment[rand_idx] == 0) ? 1 : -1;
@@ -1276,13 +1153,6 @@ namespace solver
         score = INT32_MIN;
         int cnt;
         int op_size = _operation_vars_sub.size();
-        // 确保数组大小一致
-        if (op_size != _operation_cons_pos.size())
-        {
-            cout << "error" << endl;
-            exit(0);
-            return;
-        }
         bool is_bms;
         if (op_size <= bms) 
         {
@@ -1296,23 +1166,20 @@ namespace solver
         }
         int cur_var;
         Float cur_shift, cur_score;
-        int rand_index, cons_pos = -1, cur_cons_pos;
+        int rand_index;
         for (int i = 0; i < cnt; i++) 
         {
             if (is_bms) 
             {
-                rand_index = rand() % (op_size - i);
+                rand_index = rds() % (op_size - i);
                 cur_var = _operation_vars_sub[rand_index];
                 cur_shift = _operation_value_sub[rand_index];
-                cur_cons_pos = _operation_cons_pos[rand_index];
                 _operation_vars_sub[rand_index] = _operation_vars_sub[op_size - i - 1];
                 _operation_value_sub[rand_index] = _operation_value_sub[op_size - i - 1];
-                _operation_cons_pos[rand_index] = _operation_cons_pos[op_size - i - 1];
             } 
             else {
                 cur_var = _operation_vars_sub[i];
                 cur_shift = _operation_value_sub[i];
-                cur_cons_pos = _operation_cons_pos[i];
             }
             if (is_cur_feasible)
                 cur_score = calculate_score_bin_cy(cur_var, cur_shift);
@@ -1327,18 +1194,16 @@ namespace solver
                 score = cur_score;
                 var_pos = cur_var;
                 change_value = cur_shift;
-                cons_pos = cur_cons_pos;
             }
-        }
-        if (_constraint_tabu_enabled && cons_pos != -1)
-        {
-            _constraints[cons_pos].tabu_step = _steps + rand() % 10 + 3;
         }
     }
 
     void qp_solver::local_search_bin()
     {
-        std::srand(8);
+        if (portfolio_mode == 0)
+            rds.seed(8);
+        else
+            rds.seed(std::abs(portfolio_mode));
         initialize();
         // exit(0);
         int var_pos;
@@ -1350,7 +1215,7 @@ namespace solver
 #ifdef DEBUG
             cout << " unsat num: "  << _unsat_constraints.size()  << endl;
 #endif
-            if (_steps % 1000 == 0 && (TimeElapsed() > _cut_off)) break;
+            if ((TimeElapsed() > _cut_off) || terminate) break;
             if (is_cur_feasible)
             {
                 // lift_var = lift_move();
@@ -1393,18 +1258,21 @@ namespace solver
                 }
             }
         }
-        if (_best_object_value == INT32_MAX) cout << INT32_MAX << endl;
-        else
+        if (output_mode == 0)
         {
-            if (is_minimize)
-                cout << std::fixed << " best obj min= " ;
-            else 
-                cout << std::fixed << " best obj max= " ;
-            if (is_minimize) cout << _best_object_value + _obj_constant;
-            else cout << -_best_object_value + _obj_constant;
-            // cout << endl << " solution : " <<endl;
-            // print_best_solution();
-        } 
+            if (_best_object_value == INT64_MAX) cout << INT64_MAX << endl;
+            else
+            {
+                if (is_minimize)
+                    cout << std::fixed << " best obj min= " ;
+                else 
+                    cout << std::fixed << " best obj max= " ;
+                if (is_minimize) cout << _best_object_value + _obj_constant;
+                else cout << -_best_object_value + _obj_constant;
+                // cout << endl << " solution : " <<endl;
+                // print_best_solution();
+            } 
+        }
     }
 
 }

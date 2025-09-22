@@ -1,62 +1,44 @@
 #pragma once
 
 #include "util.h"
+#include <set>
+#include <map>
+#include <deque>
+#include <memory>
+#include <fstream>
 // #define DEBUG
 // #define OUTPUT_PROCESS
+class ParallelSolver;
 namespace solver 
 {
-    struct equal_var
-    {
-        int real_index;
-        int bool_index;
-        Float constant;
-        Float real_coeff;
-        Float bool_coeff;
-        bool has_bool;
-        equal_var(int real_index_o,  Float real_coeff_o, int bool_index_o, Float bool_coeff_o, Float constant_o)
-        {
-            real_index = real_index_o;
-            bool_index = bool_index_o;
-            real_coeff = real_coeff_o;
-            bool_coeff = bool_coeff_o;
-            constant = constant_o;
-            has_bool = true;
-        }
-        equal_var(int real_index_o,  Float real_coeff_o, Float constant_o)
-        {
-            real_index = real_index_o;
-            bool_index = -1;
-            real_coeff = real_coeff_o;
-            bool_coeff = -1;
-            constant = constant_o;
-            has_bool = false;
-        }
-    };
     struct var {
-        int                     index;
-        Float                   lower = 0, upper, constant;
-        bool                    has_lower = true, has_upper;
-        string                  name;
-        unordered_set<int>      constraints;
-        unordered_map<int, int> constraints_score;//不用管
-        int                     obj_score;//不用管
-        bool                    is_bin;
-        bool                    is_int;
-        bool                    is_in_obj;
-        bool                    is_constant;
-        bool                    equal_bound = false;
-        int                     bool_score;//不用管
-        Float                   obj_quadratic_coeff; //constant  初始化为0
-        vector<int>             obj_linear_coeff; //var index
-        vector<Float>           obj_linear_constant_coeff; //constant
-        Float                   obj_constant_coeff;  //constant 
-        vector<int>             obj_monomials;//不用管
-        int                     last_pos_step = -10;//TODO:
-        int                     last_neg_step = -10;
-        CircularQueue            * recent_value;
-        vector<equal_var>       equal_pair;
+        int                                             index;
+        Float                                           lower = 0, upper, constant;
+        bool                                            has_lower = true, has_upper;
+        string                                          name;
+        std::shared_ptr<unordered_set<int>>             constraints;
+        unordered_map<int, int>                         constraints_score;//不用管
+        int                                             obj_score;//不用管
+        bool                                            is_bin;
+        bool                                            is_int;
+        bool                                            is_in_obj;
+        bool                                            is_constant;
+        bool                                            equal_bound = false;
+        int                                             bool_score;//不用管
+        Float                                           obj_quadratic_coeff; //constant  初始化为0
+        std::shared_ptr<vector<int>>                    obj_linear_coeff; //var index
+        std::shared_ptr<vector<Float>>                  obj_linear_constant_coeff; //constant
+        Float                                           obj_constant_coeff;  //constant 
+        std::shared_ptr<vector<int>>                    obj_monomials;//不用管
+        int                                             last_pos_step = -10;//TODO:
+        int                                             last_neg_step = -10;
+        // CircularQueue                                    * recent_value;
         var(int o_index, string o_name) : index(o_index), name(o_name)
         {
+            constraints = std::make_shared<unordered_set<int>>();
+            obj_linear_coeff = std::make_shared<vector<int>>();
+            obj_linear_constant_coeff = std::make_shared<vector<Float>>();
+            obj_monomials = std::make_shared<vector<int>>();
             has_lower = true;
             has_upper = false;
             is_constant = false;
@@ -64,7 +46,7 @@ namespace solver
             is_int = false;
             obj_constant_coeff = 0;
             obj_quadratic_coeff = 0;
-            recent_value = new CircularQueue;
+            // recent_value = new CircularQueue;
         }
     };
 
@@ -105,29 +87,34 @@ namespace solver
     };
 
     struct polynomial_constraint {
-        vector<monomial>                monomials;
-        Float                           value;//只需要知道这个就好，不用知道变量的截距变量
-        Float                           bound;
-        unordered_map<int, all_coeff>   var_coeff;//TODO:构建
-        vector<int>                     p_bin_vars;//不用管
-        string                          name;
-        int                             weight = 1;
-        int                             index;
-        bool                            is_sat;
-        bool                            is_equal = false;
-        bool                            is_less = true;
-        bool                            is_quadratic = false;
-        bool                            is_average = true;
-        bool                            is_linear;
-        Float                           sum;
-        int                             tabu_step = -10;
-        // vector<int>                     p_vars;
-        // vector<int>                     p_quadratic_coeff; //constant  初始化为0
-        // vector<vector<int>>             p_linear_coeff; //var index
-        // vector<int>                     p_linear_constant_coeff; //constant
-        // vector<int>                     p_constant_coeff;  //constant
-        // vector<vector<int>>             p_coeff_vars;
-        // vector<vector<int>>             p_coeff_vars_exponent;
+        polynomial_constraint()
+        {
+            monomials = std::make_shared<vector<monomial>>();
+            var_coeff = std::make_shared<unordered_map<int, all_coeff>>();
+        }
+
+        std::shared_ptr<vector<monomial>>               monomials;
+        Float                                           value;//只需要知道这个就好，不用知道变量的截距变量
+        Float                                           bound;
+        std::shared_ptr<unordered_map<int, all_coeff>>  var_coeff;//TODO:构建
+        vector<int>                                     p_bin_vars;//不用管
+        string                                          name;
+        int                                             weight = 1;
+        int                                             index;
+        bool                                            is_sat;
+        bool                                            is_equal = false;
+        bool                                            is_less = true;
+        bool                                            is_quadratic = false;
+        bool                                            is_average = true;
+        bool                                            is_linear;
+        Float                                           sum;
+        // vector<int>                                     p_vars;
+        // vector<int>                                     p_quadratic_coeff; //constant  初始化为0
+        // vector<vector<int>>                             p_linear_coeff; //var index
+        // vector<int>                                     p_linear_constant_coeff; //constant
+        // vector<int>                                     p_constant_coeff;  //constant
+        // vector<vector<int>>                             p_coeff_vars;
+        // vector<vector<int>>                             p_coeff_vars_exponent;
     };
     
     struct pair_vars{
@@ -135,14 +122,12 @@ namespace solver
         int var_2;
         Float value_1;
         Float value_2;
-        int cons_pos;
         pair_vars(int var_idx_1, int var_idx_2)
         {
             var_1 = var_idx_1;
             var_2 = var_idx_2;
             value_1 = INT32_MIN;
             value_2 = INT32_MIN;
-            cons_pos = -1;  // 默认值
         }
         pair_vars(int var_idx_1, int var_idx_2, Float change_value_1, Float change_value_2)
         {
@@ -150,15 +135,6 @@ namespace solver
             var_2 = var_idx_2;
             value_1 = change_value_1;
             value_2 = change_value_2;
-            cons_pos = -1;  // 默认值
-        }
-        pair_vars(int var_idx_1, int var_idx_2, int cons_pos_o)
-        {
-            var_1 = var_idx_1;
-            var_2 = var_idx_2;
-            value_1 = INT32_MIN;
-            value_2 = INT32_MIN;
-            cons_pos = cons_pos_o;
         }
         bool operator==(const pair_vars& other) const 
         {
@@ -171,10 +147,21 @@ namespace solver
 
     class qp_solver {
     public:
-        int                                             tabu_switch;
-        bool                                            no_cons_int_flag = false;
-        int                                             top_cons_num = 10;  
-        const Float                                     eb = 1e-6;                
+        bool                                            restart_flag = false;
+        unsigned int                                    rds_seed = 0;
+        int                                             _non_improve_step = 0;
+        void                                            restart();
+        int                                             self_poly_solve_quadratic(Float a, Float b, Float c, Float * root1, Float * root2);
+        std::mt19937                                    rds{0};
+        ParallelSolver*                                 parallel_solver = nullptr;
+        int                                             parallel_tid;
+        vector<string>                                  var_name;
+        // ##############################################################
+        double                                          _best_time;
+        bool                                            bug_flag = false;
+        int                                             portfolio_mode = 0;
+        int                                             output_mode = 0;
+        const Float                                     eb = 1e-6 - 1e-13;                
         // const Float                                     eb = 0;          //ali eb = 0 
         //for mix search
         int                                             unsat_cls_num_with_real;
@@ -210,12 +197,12 @@ namespace solver
         vector<monomial>                                _object_monoials;
         vector<int>                                     _object_weights;
         int                                             _object_weight;
-        Float                                           _best_object_value = INT32_MAX;
+        Float                                           _best_object_value = INT64_MAX;
         bool                                            is_obj_quadratic = false;
         bool                                            is_cons_quadratic = false;
         //solution information
         bool                                            print_flag = false;
-        int                                             _best_steps;
+        int                                             _best_steps = 0;
         vector<Float>                                   _best_assignment;
         bool                                            is_feasible;
         bool                                            is_cur_feasible;
@@ -224,11 +211,7 @@ namespace solver
         vector<Float>                                   _operation_value;
         vector<int>                                     _operation_vars_sub;// bin vars
         vector<Float>                                   _operation_value_sub; //bin value
-        vector<int>                                     _operation_cons_pos;
         vector<pair_vars>                               _operation_vars_pair;//bin pair vars;
-        
-        // 约束级别的tabu机制
-        bool                                            _constraint_tabu_enabled = false;  // tabu开关
         vector<int>                                     _rand_op_vars;
         vector<Float>                                   _rand_op_values;
         int                                             bms = 100;// 100 200
@@ -238,7 +221,7 @@ namespace solver
         int                                             int_problem; // 0 means all real, 1 means mix, 2 means all int
         int                                             bin_problem; // 0 means all real, 1 means mix, 2 means all bool                                           
         int                                             _steps;
-        const int                                       _max_steps = INT32_MAX;   
+        const long long                                 _max_steps = INT64_MAX;   
         std::chrono::steady_clock::time_point           _start_time;
         double                                          _cut_off = 300;
         //constant          
@@ -323,15 +306,9 @@ namespace solver
         void                                            no_bound_sat_move();
         //new balance op
         bool                                            insert_var_change_value_balance(int var_idx, all_coeff * a_coeff, Float delta, polynomial_constraint * pcon, Float symvalue, bool rand_flag);
-        bool                                            insert_var_change_value_balance_rf(int var_idx, polynomial_constraint * pcon, int symflag, Float symvalue, bool rand_flag);
         void                                            insert_operation_balance();
         void                                            random_walk_balance();
         void                                            local_search_mix_balance();
-        
-        // 约束tabu相关函数
-        void                                            set_constraint_tabu_enabled(bool enabled);
-        bool                                            is_constraint_tabu(int constraint_idx);
-        
         //new compensate operators
         bool                                            compensate_move();
         void                                            insert_var_change_value_comp(int var_pos, Float change_value, int var_idx, all_coeff * a_coeff, Float delta, polynomial_constraint * pcon, bool rand_flag);
@@ -353,6 +330,7 @@ namespace solver
         Float                                           calculate_score_mix(int var_idx, Float change_value);
         Float                                           is_lift(int var_idx, Float change_value);
         Float                                           obj_lift(int var_idx, Float change_value);
+        bool                                            is_cons_lift(polynomial_constraint * pcon, Float var_delta, Float con_delta);
         void                                            select_best_operation(int & var_pos, Float & change_value, Float & score);
         void                                            select_best_operation_bin(int & var_pos, Float & change_value, Float & score);
         void                                            select_best_operation_bin_with_pair(int & var_pos_1, int & var_pos_2, Float & change_value, Float & score);
@@ -360,12 +338,11 @@ namespace solver
         void                                            select_best_operation_mix(int & var_pos, Float & change_value, Float & score);
         void                                            select_best_operation_lift(int & var_pos, Float & change_value, Float & score);
         bool                                            check_var_shift(int var_pos, Float & change_value, bool rand_flag);
-        bool                                            check_var_shift(int var_pos, double & change_value, bool rand_flag);
+        // bool                                            check_var_shift(int var_pos, double & change_value, bool rand_flag);
         bool                                            check_var_shift_bool(int var_pos, Float & change_value, bool rand_flag);
         void                                            execute_critical_move(int var_pos, Float change_value);
         void                                            execute_critical_move_no_cons(int var_pos, Float change_value);
         void                                            execute_critical_move_mix(int var_pos, Float change_value);
-        void                                            execute_critical_move_mix_more(int var_pos, Float change_value);
         void                                            update_weight();
         void                                            update_weight_no_cons();
         void                                            update_best_solution();
@@ -399,6 +376,57 @@ namespace solver
         // propagation
         class propagation;
         friend class propagation;
-        propagation*                                    _propagationer;
+        std::unique_ptr<propagation>                    _propagationer;
+        void                                            propagate_init(int limit, uint64_t seed, uint8_t type, bool run_linear = false);
+        void                                            propagate_fix();
+        std::deque<std::pair<int, Float>>               _prop_pool;
+        void                                            propagate_move_unsat_mix(int pool_size, int limit_step, Float score_ratio, Float reason_ratio, bool impact_que, bool greedy_prop, bool random_prop, bool positive_score);
+        void                                            propagate_init_unsat_mix(int pool_size, bool impact_que);
+        void                                            propagate_pick_var_unsat_mix(int pool_size, std::vector<std::tuple<int, Float, Float>> &pool, std::vector<std::tuple<int, Float, Float>> &selects, Float score_ratio, Float reason_ratio);
+        bool                                            propagate_selects_unsat_mix(int pool_size, int limit_step, std::vector<std::tuple<int, Float, Float>> &selects, bool impact_que, Float score_ratio, Float reason_ratio);
+        void                                            propagate_select_operation_mix(std::vector<std::tuple<int, Float, Float>> &selects, bool positive_score);
+        void                                            propagate_random_selects_unsat_mix(std::vector<std::tuple<int, Float, Float>> &selects, bool positive_score);
+        // parser
+        void                                            parse_mps(char* filename);
+        void                                            parse_rows();
+        void                                            parse_columns();
+        void                                            parse_rhs();
+        void                                            parse_bounds();
+        void                                            parse_qcmatrix();
+        void                                            parse_qmatrix();
+        void                                            parse_quadobj();
+        // preprocessing
+        bool                                            has_assignment = false;
+        bool                                            init_assignment = false;
+        bool                                            ls_assignment = false;
+        int                                             _union_size = 0;
+        std::vector<int>                                _union_label = {};
+        std::vector<std::set<int>>                      _union_cons = {};
+        std::vector<std::vector<int>>                   _union_vars = {};
+        std::vector<bool>                               _removed_cons = {};
+        std::vector<std::vector<std::pair<int, Float>>> _vars_formula = {};
+        void                                            preprocess();
+        void                                            copy_init(qp_solver* solver);
+        void                                            union_vars();
+        void                                            calc_freevars(int idx);
+        void                                            add_monomials(polynomial_constraint &con, std::map<std::pair<int, int>, Float> &mono_map);
+        void                                            add_constraint(qp_solver* solver, polynomial_constraint &con);
+        polynomial_constraint                           calc_cons(const polynomial_constraint &con, bool all_replace);
+        void                                            update_cons(qp_solver* solver, bool all_replace);
+        qp_solver*                                      preprocessing(int mat_limit, bool all_replace, bool init_flag, bool ls_flag);
+        void                                            adjust_assignments();
+        // new preprocessing
+        qp_solver*                                      preprocessing_new(int mat_limit);
+        void                                            update_cons_new(qp_solver* solver);
+        // attenuation
+        bool                                            attenuation_flag = false;
+        void                                            attenuation(int var_idx, Float &change_value);
+        // gauss adjust
+        bool                                            terminate = false;
+        bool                                            open_terminate = false;
+        std::shared_ptr<qp_solver>                      adjust_solver = nullptr;
+        bool                                            gauss_adjust_flag = false;
+        void                                            gauss_adjust_init(qp_solver *init_solver);
+        Float                                           var_value_delta_in_obj(int var_idx, Float shift_value);
     };
 }
